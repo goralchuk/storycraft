@@ -1,8 +1,12 @@
 'use server';
 import { signIn, signOut } from '@/auth';
 
+export async function googleLoginAction() {
+  await signIn('google', { redirectTo: '/dashboard' });
+}
+
 export async function stubLoginAction() {
-  await signIn('credentials', { redirectTo: '/dashboard' });
+  await signIn('stub', { redirectTo: '/dashboard' });
 }
 
 export async function logoutAction() {
