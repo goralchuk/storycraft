@@ -10,6 +10,10 @@ export const envSchema = z.object({
   MINIO_BUCKET: z.string(),
   PORT: z.coerce.number().default(3000),
   JWT_SECRET: z.string().min(32),
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string(),
+  GOOGLE_CALLBACK_URL: z.string().url(),
+  FRONTEND_URL: z.string().url().default('http://localhost:3001'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -7,18 +7,19 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AppConfigService } from './config/config.service';
 import { AuthModule } from './auth/auth.module';
 import { validate } from './config/env.schema';
+import type { Env } from './config/env.schema';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ validate, isGlobal: true }),
     BullModule.forRootAsync({
-      useFactory: (config: AppConfigService) => ({
+      useFactory: (config: ConfigService<Env, true>) => ({
         connection: {
-          host: config.get('REDIS_HOST'),
-          port: config.get('REDIS_PORT'),
+          host: config.get('REDIS_HOST', { infer: true }),
+          port: config.get('REDIS_PORT', { infer: true }),
         },
       }),
-      inject: [AppConfigService],
+      inject: [ConfigService],
     }),
     PrismaModule,
     AuthModule,
