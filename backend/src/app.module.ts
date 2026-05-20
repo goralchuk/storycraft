@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppConfigService } from './config/config.service';
+import { AuthModule } from './auth/auth.module';
 import { validate } from './config/env.schema';
 
 @Module({
@@ -20,6 +21,7 @@ import { validate } from './config/env.schema';
       inject: [AppConfigService],
     }),
     PrismaModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

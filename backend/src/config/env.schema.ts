@@ -9,6 +9,7 @@ export const envSchema = z.object({
   MINIO_SECRET_KEY: z.string(),
   MINIO_BUCKET: z.string(),
   PORT: z.coerce.number().default(3000),
+  JWT_SECRET: z.string().min(32),
 });
 
 export type Env = z.infer<typeof envSchema>;
