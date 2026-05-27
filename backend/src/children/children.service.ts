@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/strategies/jwt.strategy';
 
@@ -65,6 +65,9 @@ export class ChildrenService {
       where: { id, user: { email: user.email } },
     });
     if (!child) throw new NotFoundException();
-    await this.prisma.child.delete({ where: { id } });
+    await this.prisma.child.delete({ where: { id } }).catch((e) => {
+      if (e?.code === 'P2003') throw new ConflictException('Child has books and cannot be deleted');
+      throw e;
+    });
   }
 }
