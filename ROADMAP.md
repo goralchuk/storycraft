@@ -76,7 +76,20 @@ storycraft/
 
 ---
 
-## Phase 4 — Generation Pipeline
+## Phase 4 — Onboarding & Dashboard
+
+| # | Task | Verification |
+|---|------|-------------|
+| 4.1 | Fix session user ID — `backend-callback` calls `GET /users/me`; stores real DB UUID + `name` in session | `session.user.id` is a cuid; `name` is `null` for new user |
+| 4.2 | Route guard — new user (name is null) redirected to `/onboarding`; returning user goes to `/dashboard` | First login → `/onboarding`; second login → `/dashboard` |
+| 4.3 | `/onboarding` page — step 1: enter name (`PATCH /users/me`); step 2: add first child (`POST /children`) with skip option | Name saved to DB; child created; lands on `/dashboard` |
+| 4.4 | `frontend/src/lib/api.ts` — server-side fetch helper that attaches Bearer token from session | All backend calls use the helper |
+| 4.5 | Dashboard — state A (no books): "Create your first book" CTA; state B: book list with template title, child name, status badge | New user sees CTA; returning user sees book list |
+| 4.6 | Book creation flow — pick template (`GET /templates`), pick child (`GET /children`), submit (`POST /books`) | Book appears in list with `PENDING` status |
+
+---
+
+## Phase 5 — Generation Pipeline
 
 `AiService` is an interface with two implementations selected via env var `AI_PROVIDER=stub|real`.
 
@@ -86,43 +99,42 @@ storycraft/
 
 | # | Task | Verification |
 |---|------|-------------|
-| 4.1 | `TasksModule` + BullMQ queue setup | Job enqueued on book creation |
-| 4.2 | `AiService` interface + `StubAiService` (returns hardcoded text/image URL) | Worker processes job end-to-end with stub |
-| 4.3 | `OpenAiTextService` — `gpt-4o-mini` generates story text per page from child profile + template prompt | Returns structured page text |
-| 4.4 | `BingImageService` — submits prompt to Bing Image Creator via `_U` cookie, polls for result URL | Returns image URL per illustration |
-| 4.5 | Wire `AI_PROVIDER` env var to inject stub or real implementation | Switching `AI_PROVIDER=real` uses live APIs; `stub` uses hardcoded data |
-| 4.6 | PDF generation worker (pdfkit or Puppeteer) — assembles pages + images into PDF | Produces valid PDF |
-| 4.7 | `StorageService` — MinIO/S3 upload + signed URL | PDF stored, URL returned on `GET /books/:id` |
-| 4.8 | Book status lifecycle: `PENDING → PROCESSING → DONE / FAILED` | Frontend can poll status |
+| 5.1 | `TasksModule` + BullMQ queue setup | Job enqueued on book creation |
+| 5.2 | `AiService` interface + `StubAiService` (returns hardcoded text/image URL) | Worker processes job end-to-end with stub |
+| 5.3 | `OpenAiTextService` — `gpt-4o-mini` generates story text per page from child profile + template prompt | Returns structured page text |
+| 5.4 | `BingImageService` — submits prompt to Bing Image Creator via `_U` cookie, polls for result URL | Returns image URL per illustration |
+| 5.5 | Wire `AI_PROVIDER` env var to inject stub or real implementation | Switching `AI_PROVIDER=real` uses live APIs; `stub` uses hardcoded data |
+| 5.6 | PDF generation worker (pdfkit or Puppeteer) — assembles pages + images into PDF | Produces valid PDF |
+| 5.7 | `StorageService` — MinIO/S3 upload + signed URL | PDF stored, URL returned on `GET /books/:id` |
+| 5.8 | Book status lifecycle: `PENDING → PROCESSING → DONE / FAILED` | Frontend can poll status |
 
 ---
 
-## Phase 5 — Subscriptions & Payments
+## Phase 6 — Subscriptions & Payments
 
 | # | Task | Verification |
 |---|------|-------------|
-| 5.1 | Stripe products/prices setup (free tier + paid plans) | Prices exist in Stripe dashboard |
-| 5.2 | `SubscriptionsModule` — create checkout session, portal | Redirect to Stripe works |
-| 5.3 | Stripe webhook handler — sync subscription status to DB | Status updates on payment event |
-| 5.4 | Subscription guard on book generation endpoint | Free tier returns `403` when limit hit |
+| 6.1 | Stripe products/prices setup (free tier + paid plans) | Prices exist in Stripe dashboard |
+| 6.2 | `SubscriptionsModule` — create checkout session, portal | Redirect to Stripe works |
+| 6.3 | Stripe webhook handler — sync subscription status to DB | Status updates on payment event |
+| 6.4 | Subscription guard on book generation endpoint | Free tier returns `403` when limit hit |
 
 ---
 
-## Phase 6 — Frontend
+## Phase 7 — Frontend Polish
 
 | # | Task | Verification |
 |---|------|-------------|
-| 6.1 | NextAuth with Google provider + JWT forwarding to API | Login works, session persists |
-| 6.2 | Dashboard layout + routing | Nav renders, routes load |
-| 6.3 | Children management page | Add/edit/delete children |
-| 6.4 | Template browser | Grid of templates with preview |
-| 6.5 | Book creation wizard (template → child → confirm) | Wizard submits, shows status |
-| 6.6 | Book detail + PDF download | Signed URL opens PDF |
-| 6.7 | Subscription/billing page | Checkout + portal links work |
+| 7.1 | Children management page — add/edit/delete | Full CRUD from the UI |
+| 7.2 | Template browser — grid with preview | Templates display with cover image |
+| 7.3 | Book detail page + PDF download | Signed URL opens PDF |
+| 7.4 | Book status polling — `PENDING → PROCESSING → DONE` | Status badge updates without refresh |
+| 7.5 | Profile page — edit name, avatar | Changes persist |
+| 7.6 | Subscription/billing page | Checkout + portal links work |
 
 ---
 
-## Phase 7 — Optional / Later
+## Phase 8 — Optional / Later
 
 - Ratings system on books
 - Referral program
