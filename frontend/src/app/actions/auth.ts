@@ -1,8 +1,9 @@
 'use server';
+import { redirect } from 'next/navigation';
 import { signIn, signOut } from '@/auth';
 
 export async function googleLoginAction() {
-  await signIn('google', { redirectTo: '/dashboard' });
+  redirect(`${process.env.BACKEND_URL}/auth/google`);
 }
 
 export async function stubLoginAction() {
