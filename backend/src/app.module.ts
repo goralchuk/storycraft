@@ -6,6 +6,10 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppConfigService } from './config/config.service';
 import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { ChildrenModule } from './children/children.module';
+import { TemplatesModule } from './templates/templates.module';
+import { BooksModule } from './books/books.module';
 import { validate } from './config/env.schema';
 import type { Env } from './config/env.schema';
 
@@ -23,6 +27,10 @@ import type { Env } from './config/env.schema';
     }),
     PrismaModule,
     AuthModule,
+    UsersModule,
+    ChildrenModule,
+    TemplatesModule,
+    BooksModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],
