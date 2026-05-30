@@ -9,8 +9,8 @@ export class UsersService {
   getMe(user: AuthUser) {
     return this.prisma.user.upsert({
       where: { email: user.email },
-      update: {},
-      create: { email: user.email },
+      update: { googleId: user.id },
+      create: { email: user.email, googleId: user.id },
     });
   }
 
