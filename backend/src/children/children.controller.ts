@@ -17,7 +17,7 @@ export class ChildrenController {
   @Post()
   create(
     @CurrentUser() user: AuthUser,
-    @Body() dto: { name: string; birthDate?: string; gender?: string; interests?: string[] },
+    @Body() dto: { name: string; birthDate?: string; gender?: string; interests?: string[]; photoUrl?: string },
   ) {
     return this.children.create(user, dto);
   }
@@ -26,7 +26,7 @@ export class ChildrenController {
   update(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Body() dto: { name?: string; birthDate?: string; gender?: string; interests?: string[] },
+    @Body() dto: { name?: string; birthDate?: string; gender?: string; interests?: string[]; photoUrl?: string },
   ) {
     return this.children.update(user, id, dto);
   }

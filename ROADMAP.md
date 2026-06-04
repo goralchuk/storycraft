@@ -89,24 +89,31 @@ storycraft/
 
 ---
 
-## Phase 5 — Generation Pipeline
+## Phase 5 — StoryBloom: Data, API & Generation
 
-`AiService` is an interface with two implementations selected via env var `AI_PROVIDER=stub|real`.
+Implements the StoryBloom spec (`draft/storybloom_spec.md`): topic/age-based templates, the guided creation form, child photos, DB-configurable AI models, and reuse-ready story storage.
 
-**Text:** OpenAI `gpt-4o-mini` (cheapest model, ~$0.15/1M tokens).
-**Images:** Bing Image Creator (DALL-E 3 under the hood, free via Microsoft account).
-> Bing Image Creator has no official API — access is cookie-based (`_U` cookie from a logged-in Microsoft account). Suitable for development and low volume. For production scale, swap to OpenAI DALL-E 3 or Stability AI.
+**Status:** ✅ Complete (5.1–5.11). Results in `docs/phase-5-storybloom.md`.
+
+AI providers and models are selected at runtime from a DB-backed typed `AppSettings` singleton — separate `textProvider`/`textModel` and `imageProvider`/`imageModel` — editable via `GET/PATCH /settings`. API keys stay in env; only the provider/model choice lives in the DB. (Replaces the earlier `AI_PROVIDER` env-var approach.)
+
+**Text:** provider/model configurable (default OpenAI `gpt-4o-mini`, ~$0.15/1M tokens; Anthropic Claude also supported). Stories are generated **slot-based** — the child name and character names are emitted as tokens (`{{child}}`, `{{friend}}`) with a `Book.slots` map resolved at read-time, so a saved story can later be re-personalized with zero text-model cost.
+**Images:** provider/model configurable. Illustrations that feature the child are flagged `featuresChild` and driven by the child's photo (`Child.photoUrl`, or a per-book `Book.photoUrl` override), so later reuse regenerates only child-facing panels.
+> Reuse library (`StoryPreset`) is not built in this phase — the slot map + `featuresChild` flag are the hooks that make it cheap to add later. Frontend create flow / preview / PDF download live in Phase 7.
 
 | # | Task | Verification |
 |---|------|-------------|
-| 5.1 | `TasksModule` + BullMQ queue setup | Job enqueued on book creation |
-| 5.2 | `AiService` interface + `StubAiService` (returns hardcoded text/image URL) | Worker processes job end-to-end with stub |
-| 5.3 | `OpenAiTextService` — `gpt-4o-mini` generates story text per page from child profile + template prompt | Returns structured page text |
-| 5.4 | `BingImageService` — submits prompt to Bing Image Creator via `_U` cookie, polls for result URL | Returns image URL per illustration |
-| 5.5 | Wire `AI_PROVIDER` env var to inject stub or real implementation | Switching `AI_PROVIDER=real` uses live APIs; `stub` uses hardcoded data |
-| 5.6 | PDF generation worker (pdfkit or Puppeteer) — assembles pages + images into PDF | Produces valid PDF |
-| 5.7 | `StorageService` — MinIO/S3 upload + signed URL | PDF stored, URL returned on `GET /books/:id` |
-| 5.8 | Book status lifecycle: `PENDING → PROCESSING → DONE / FAILED` | Frontend can poll status |
+| 5.1 | **Data model & seed** — extend `Template`/`Book`/`Child`/`Illustration`; add `Topic` and `AppSettings` singleton; seed topics, templates, default settings | `prisma migrate dev` runs clean; seed rows present |
+| 5.2 | **Domain API** — `/topics`; template `category`/`age` filtering; extended `Children` (`photoUrl`) and `Books` DTO (`topicId, pageCount, promptText, writingStyle, fear, photoUrl`) | Endpoints list/filter; book inherits child `photoUrl` when none supplied |
+| 5.3 | **Settings API** — `GET/PATCH /settings` for AI provider/model config | Patching `textModel` persists; reads reflect change |
+| 5.4 | `TasksModule` + BullMQ queue setup | Job enqueued on book creation |
+| 5.5 | `AiService` interface + `StubAiService` (hardcoded slot-tokenized text + image URL) | Worker processes job end-to-end with stub; slots present |
+| 5.6 | Text generator — reads provider/model from `AppSettings`; emits slot-tokenized story (child + character names as tokens) per page from child profile + template prompt | Returns structured page text with `{{...}}` tokens + slots map |
+| 5.7 | Image generator — reads provider/model from `AppSettings`; generates per illustration, sets `featuresChild`, uses child photo for child-facing panels | Returns image URL per illustration; child-facing panels flagged |
+| 5.8 | Provider/model injection driven by `AppSettings` (not env) | Switching `textProvider`/`imageProvider` in DB swaps implementation; stub and live both work |
+| 5.9 | PDF generation worker (pdfkit or Puppeteer) — resolves slots, assembles pages + images into PDF | Produces valid PDF with names resolved |
+| 5.10 | `StorageService` — MinIO/S3 upload + signed URL; binary photo upload endpoint | PDF + images stored, URLs returned on `GET /books/:id`; photo upload returns a URL |
+| 5.11 | Book status lifecycle: `PENDING → PROCESSING → DONE / FAILED` | Frontend can poll status |
 
 ---
 
@@ -139,4 +146,5 @@ storycraft/
 - Ratings system on books
 - Referral program
 - Mobile app (App Store + Play Market)
-- Swap `BingImageService` for OpenAI DALL-E 3 or Stability AI at production scale
+- Add production-scale image providers (OpenAI DALL-E 3, Stability AI) selectable via `AppSettings`
+- `StoryPreset` reuse library — save curated slot-based books, re-personalize by swapping name/photo/character slots (regenerates only `featuresChild` panels)

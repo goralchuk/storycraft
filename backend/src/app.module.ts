@@ -9,7 +9,10 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ChildrenModule } from './children/children.module';
 import { TemplatesModule } from './templates/templates.module';
+import { TopicsModule } from './topics/topics.module';
 import { BooksModule } from './books/books.module';
+import { SettingsModule } from './settings/settings.module';
+import { StorageModule } from './storage/storage.module';
 import { validate } from './config/env.schema';
 import type { Env } from './config/env.schema';
 
@@ -30,7 +33,10 @@ import type { Env } from './config/env.schema';
     UsersModule,
     ChildrenModule,
     TemplatesModule,
+    TopicsModule,
     BooksModule,
+    SettingsModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

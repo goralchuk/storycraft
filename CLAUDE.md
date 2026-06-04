@@ -19,3 +19,5 @@ After completing a stage, create a stage description file in the `docs/` folder.
 Maintain a dedicated `docs/API.md` file. Document API endpoints there only — keep it separate from other docs.
 ## 8. User Guide
 Maintain `docs/USERGUIDE.md` with descriptions of user use cases.
+## 9. Basic Philosophy
+Before getting started, please review the `AGENTS.md` file.

@@ -1,4 +1,5 @@
-import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { TemplateCategory } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TemplatesService } from './templates.service';
 
@@ -8,8 +9,11 @@ export class TemplatesController {
   constructor(private readonly templates: TemplatesService) {}
 
   @Get()
-  list() {
-    return this.templates.list();
+  list(@Query('category') category?: string, @Query('age') age?: string) {
+    if (category && !(category in TemplateCategory)) {
+      throw new BadRequestException(`Unknown category: ${category}`);
+    }
+    return this.templates.list({ category: category as TemplateCategory, age });
   }
 
   @Get(':id')

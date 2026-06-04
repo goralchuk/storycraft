@@ -39,6 +39,22 @@ enum TaskType {
   GENERATE_PDF
 }
 
+enum TemplateCategory {
+  FANTASY
+  ADVENTURE
+  NATURE
+  SCIENCE
+  FRIENDSHIP
+  ANIMALS
+}
+
+enum WritingStyle {
+  WATERCOLOR
+  ADVENTURE
+  FUNNY
+  GENTLE
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -63,6 +79,7 @@ model Child {
   birthDate DateTime?
   gender    String?
   interests String[]
+  photoUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -71,31 +88,48 @@ model Child {
 }
 
 model Template {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  coverUrl    String?
-  prompt      String
-  pageCount   Int      @default(10)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id             String            @id @default(cuid())
+  title          String
+  description    String?
+  coverUrl       String?
+  prompt         String
+  pageCount      Int               @default(10)
+  icon           String?
+  category       TemplateCategory?
+  ageRange       String?
+  availablePages Int[]
+  defaultTone    String?
+  badge          String?
+  coverColor     String?
+  tags           Json?
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
 
   books Book[]
 }
 
 model Book {
-  id         String     @id @default(cuid())
-  userId     String
-  childId    String
-  templateId String
-  status     BookStatus @default(PENDING)
-  pdfUrl     String?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id           String        @id @default(cuid())
+  userId       String
+  childId      String
+  templateId   String
+  topicId      String?
+  title        String?
+  pageCount    Int           @default(10)
+  promptText   String?
+  writingStyle WritingStyle?
+  fear         String?
+  photoUrl     String?
+  slots        Json?
+  status       BookStatus    @default(PENDING)
+  pdfUrl       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   child     Child         @relation(fields: [childId], references: [id])
   template  Template      @relation(fields: [templateId], references: [id])
+  topic     Topic?        @relation(fields: [topicId], references: [id])
   pages     BookPage[]
   tasks     Task[]
   ratings   Rating[]
@@ -115,11 +149,12 @@ model BookPage {
 }
 
 model Illustration {
-  id         String   @id @default(cuid())
-  bookPageId String
-  prompt     String?
-  imageUrl   String?
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  bookPageId    String
+  prompt        String?
+  imageUrl      String?
+  featuresChild Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
   bookPage BookPage @relation(fields: [bookPageId], references: [id], onDelete: Cascade)
 }
@@ -173,4 +208,24 @@ model Task {
   updatedAt DateTime   @updatedAt
 
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  icon      String
+  label     String
+  prompts   String[]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  books Book[]
+}
+
+model AppSettings {
+  id            String   @id @default("singleton")
+  textProvider  String   @default("stub")
+  textModel     String   @default("gpt-4o-mini")
+  imageProvider String   @default("stub")
+  imageModel    String   @default("dall-e-3")
+  updatedAt     DateTime @updatedAt
 }

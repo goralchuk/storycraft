@@ -14,6 +14,8 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string(),
   GOOGLE_CALLBACK_URL: z.string().url(),
   FRONTEND_URL: z.string().url().default('http://localhost:3001'),
+  // Optional — only needed when textProvider is "gemini". Stub works without it.
+  GEMINI_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

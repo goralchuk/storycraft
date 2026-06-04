@@ -7,6 +7,7 @@ type CreateChildDto = {
   birthDate?: string;
   gender?: string;
   interests?: string[];
+  photoUrl?: string;
 };
 
 type UpdateChildDto = {
@@ -14,6 +15,7 @@ type UpdateChildDto = {
   birthDate?: string;
   gender?: string;
   interests?: string[];
+  photoUrl?: string;
 };
 
 @Injectable()
@@ -34,6 +36,7 @@ export class ChildrenService {
         birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
         gender: dto.gender,
         interests: dto.interests ?? [],
+        photoUrl: dto.photoUrl,
         user: {
           connectOrCreate: {
             where: { email: user.email },
@@ -55,6 +58,7 @@ export class ChildrenService {
         name: dto.name,
         gender: dto.gender,
         interests: dto.interests,
+        photoUrl: dto.photoUrl,
         birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
       },
     });

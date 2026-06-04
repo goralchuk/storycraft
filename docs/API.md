@@ -122,7 +122,8 @@ Returns all children for the current user.
     "name": "string",
     "birthDate": "string | null",
     "gender": "string | null",
-    "interests": ["string"]
+    "interests": ["string"],
+    "photoUrl": "string | null"
   }
 ]
 ```
@@ -138,7 +139,8 @@ Creates a new child profile.
   "name": "string",
   "birthDate": "string (ISO 8601, optional)",
   "gender": "string (optional)",
-  "interests": ["string"] 
+  "interests": ["string"],
+  "photoUrl": "string (optional)"
 }
 ```
 
@@ -155,7 +157,8 @@ Updates a child profile owned by the current user.
   "name": "string",
   "birthDate": "string (ISO 8601)",
   "gender": "string",
-  "interests": ["string"]
+  "interests": ["string"],
+  "photoUrl": "string"
 }
 ```
 
@@ -177,7 +180,13 @@ Deletes a child profile owned by the current user.
 All endpoints require authentication.
 
 ### `GET /templates` 🔒
-Returns all available story templates.
+Returns active story templates.
+
+**Query parameters** _(both optional)_
+| Param | Description |
+|---|---|
+| `category` | Filter by category. One of `FANTASY · ADVENTURE · NATURE · SCIENCE · FRIENDSHIP · ANIMALS` |
+| `age` | Filter by exact `ageRange` string (e.g. `3–7`) |
 
 **Response `200`**
 ```json
@@ -185,10 +194,22 @@ Returns all available story templates.
   {
     "id": "string",
     "title": "string",
-    "description": "string"
+    "description": "string | null",
+    "icon": "string | null",
+    "category": "TemplateCategory | null",
+    "ageRange": "string | null",
+    "availablePages": [12, 16, 20],
+    "pageCount": 16,
+    "defaultTone": "string | null",
+    "badge": "string | null",
+    "coverColor": "string | null",
+    "coverUrl": "string | null",
+    "tags": [{ "label": "string", "bg": "string", "color": "string" }]
   }
 ]
 ```
+
+**Response `400`** — unknown `category` value.
 
 ---
 
@@ -198,6 +219,36 @@ Returns a single template by ID.
 **Response `200`** — template object.
 
 **Response `404`** — template not found.
+
+---
+
+## Topics
+
+All endpoints require authentication. Topics are admin-seeded fear/life-moment themes with suggested prompts.
+
+### `GET /topics` 🔒
+Returns active topics.
+
+**Response `200`**
+```json
+[
+  {
+    "id": "string",
+    "icon": "string",
+    "label": "string",
+    "prompts": ["string"]
+  }
+]
+```
+
+---
+
+### `GET /topics/:id` 🔒
+Returns a single topic by ID.
+
+**Response `200`** — topic object.
+
+**Response `404`** — topic not found.
 
 ---
 
@@ -215,15 +266,20 @@ Returns all books for the current user.
     "id": "string",
     "templateId": "string",
     "childId": "string",
+    "status": "PENDING | PROCESSING | DONE | FAILED",
     "createdAt": "string (ISO 8601)"
   }
 ]
 ```
 
+`status` reflects the generation lifecycle: a book starts `PENDING` on creation, moves to `PROCESSING` when the worker picks it up, and ends `DONE` (with `pdfUrl` set) or `FAILED`. Poll `GET /books/:id` to track progress.
+
 ---
 
 ### `GET /books/:id` 🔒
-Returns a single book owned by the current user.
+Returns a single book owned by the current user, including `pages` (with `illustrations`), `template`, `child`, and `topic`.
+
+Stored object keys (the `pdfUrl`, uploaded `photoUrl`, and illustration `imageUrl` values) are resolved to **time-limited signed URLs** in the response; values that are already absolute URLs (external/stub images) are returned unchanged.
 
 **Response `200`** — book object.
 
@@ -238,8 +294,80 @@ Creates a new book from a template for a child.
 ```json
 {
   "templateId": "string",
-  "childId": "string"
+  "childId": "string",
+  "topicId": "string (optional)",
+  "pageCount": "number (optional, defaults to 10)",
+  "promptText": "string (optional)",
+  "writingStyle": "WATERCOLOR | ADVENTURE | FUNNY | GENTLE (optional)",
+  "fear": "string (optional)",
+  "photoUrl": "string (optional)"
 }
 ```
 
-**Response `201`** — created book object.
+When `photoUrl` is omitted, the book inherits the child's `photoUrl`.
+
+**Response `201`** — created book object (includes `template`, `child`, `topic`).
+
+**Response `404`** — child not found or not owned by user.
+
+---
+
+## Uploads
+
+All endpoints require authentication.
+
+### `POST /uploads/photo` 🔒
+Uploads a child/book photo (binary) to object storage and returns a reference.
+
+**Request** — `multipart/form-data` with a single `file` field. Must be an image (`image/*`); max **5 MB**.
+
+**Response `201`**
+```json
+{
+  "key": "photos/<uuid>.jpg",
+  "url": "<signed URL>"
+}
+```
+Store `key` as the child's or book's `photoUrl` (durable); `url` is a time-limited signed URL for immediate preview.
+
+**Response `400`** — missing file or non-image content type.
+
+---
+
+## Settings
+
+Application-wide AI model configuration (singleton). Requires authentication.
+
+> Not yet restricted to admins — there is no role on `User` yet. Treat as admin-only.
+
+### `GET /settings` 🔒
+Returns the current AI model settings.
+
+**Response `200`**
+```json
+{
+  "id": "singleton",
+  "textProvider": "string",
+  "textModel": "string",
+  "imageProvider": "string",
+  "imageModel": "string",
+  "updatedAt": "string (ISO 8601)"
+}
+```
+
+---
+
+### `PATCH /settings` 🔒
+Updates AI model settings.
+
+**Body** _(all fields optional)_
+```json
+{
+  "textProvider": "string",
+  "textModel": "string",
+  "imageProvider": "string",
+  "imageModel": "string"
+}
+```
+
+**Response `200`** — updated settings object.
