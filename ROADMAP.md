@@ -117,31 +117,49 @@ AI providers and models are selected at runtime from a DB-backed typed `AppSetti
 
 ---
 
-## Phase 6 — Subscriptions & Payments
+## Phase 6 — Frontend Flow & Book Preview
+
+The end-to-end user journey on the current generation pipeline (Gemini text, stub/echo images): landing → create → preview → PDF. Books render as **HTML spreads**; PDF is produced **on demand**, not eagerly in the worker.
 
 | # | Task | Verification |
 |---|------|-------------|
-| 6.1 | Stripe products/prices setup (free tier + paid plans) | Prices exist in Stripe dashboard |
-| 6.2 | `SubscriptionsModule` — create checkout session, portal | Redirect to Stripe works |
-| 6.3 | Stripe webhook handler — sync subscription status to DB | Status updates on payment event |
-| 6.4 | Subscription guard on book generation endpoint | Free tier returns `403` when limit hit |
+| 6.1 | Landing page + CTA routing — guest → Google sign-in; signed-in with a child → create; no child → child form → create | Landing renders; CTA routes by auth/child state |
+| 6.2 | Children management page — add/edit/delete, photo upload (`POST /uploads/photo`) | Full CRUD from the UI; photo persists |
+| 6.3 | Book creation wizard (`/books/new`) — child select/add → template + page count → topic/style/prompt/photo | `POST /books` sends the full StoryBloom DTO |
+| 6.4 | HTML spread renderer — `/books/[id]` lays out pages as book spreads (slots resolved, images placed) | Generated book renders as readable spreads |
+| 6.5 | Book status polling — `PENDING → PROCESSING → DONE / FAILED` | Status updates without refresh; viewer appears on `DONE` |
+| 6.6 | PDF on demand — generate + download from the HTML layout on click; remove eager PDF build from the worker | Download button returns a PDF; worker no longer builds PDF |
+| 6.7 | Profile page — edit name, avatar | Changes persist |
 
 ---
 
-## Phase 7 — Frontend Polish
+## Phase 7 — Characters & Avatars (real image generation)
+
+Real, style-matched illustrations and reusable hero avatars. Enables the "from scratch" mode and cheap targeted regeneration. Image model: Gemini (free tier; model id via `AppSettings.imageModel`).
 
 | # | Task | Verification |
 |---|------|-------------|
-| 7.1 | Children management page — add/edit/delete | Full CRUD from the UI |
-| 7.2 | Template browser — grid with preview | Templates display with cover image |
-| 7.3 | Book detail page + PDF download | Signed URL opens PDF |
-| 7.4 | Book status polling — `PENDING → PROCESSING → DONE` | Status badge updates without refresh |
-| 7.5 | Profile page — edit name, avatar | Changes persist |
-| 7.6 | Subscription/billing page | Checkout + portal links work |
+| 7.1 | `GeminiImageGenerator` + `DispatchingImageGenerator` — image provider/model from `AppSettings`, output stored via `StorageService` | Switching `imageProvider` swaps stub/Gemini; real image stored, signed URL on read |
+| 7.2 | `Avatar` model — linked to `Child` (style + image key), max 5 per child | Migrate clean; create avatar; 6th rejected |
+| 7.3 | Avatar generation — main hero from child photo + description + chosen style | Generates + stores a style-matched avatar |
+| 7.4 | Avatar selection in the create wizard — reuse a saved avatar or generate a new one | Wizard offers saved avatars for the chosen style |
+| 7.5 | Targeted regeneration — re-render only `featuresChild` panels when the avatar changes | Swapping avatar regenerates hero panels only; text untouched |
 
 ---
 
-## Phase 8 — Optional / Later
+## Phase 8 — Subscriptions & Payments
+
+| # | Task | Verification |
+|---|------|-------------|
+| 8.1 | Stripe products/prices setup (free tier + paid plans) | Prices exist in Stripe dashboard |
+| 8.2 | `SubscriptionsModule` — create checkout session, portal | Redirect to Stripe works |
+| 8.3 | Stripe webhook handler — sync subscription status to DB | Status updates on payment event |
+| 8.4 | Subscription guard on book generation endpoint | Free tier returns `403` when limit hit |
+| 8.5 | Subscription/billing page (frontend) | Checkout + portal links work |
+
+---
+
+## Phase 9 — Optional / Later
 
 - Security hardening — role-based access control: add a `role` to `User` and restrict admin-only endpoints (`/settings`, and any future admin APIs) to admins. _(Surfaced by code review of Phase 5: `/settings` is currently open to any authenticated user.)_
 - Ratings system on books
@@ -149,3 +167,13 @@ AI providers and models are selected at runtime from a DB-backed typed `AppSetti
 - Mobile app (App Store + Play Market)
 - Add production-scale image providers (OpenAI DALL-E 3, Stability AI) selectable via `AppSettings`
 - `StoryPreset` reuse library — save curated slot-based books, re-personalize by swapping name/photo/character slots (regenerates only `featuresChild` panels)
+
+---
+
+## Tech Debt / Deferred
+
+Items intentionally postponed — revisit when the trigger applies.
+
+| Item | Action | Trigger |
+|---|---|---|
+| Enable Qwen review PR gate | Uncomment `pull_request` in `.github/workflows/qwen-review.yml`, add `QWEN_API_KEY` to GitHub Secrets, and switch the diff base to `${{ github.event.pull_request.base.sha }}` | When we start opening PRs |

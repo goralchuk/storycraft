@@ -16,6 +16,16 @@ export type CreateBookDto = {
   photoUrl?: string;
 };
 
+// Book length is measured in paragraphs (slider). `pageCount` is repurposed to
+// hold this count until the field is renamed (see ROADMAP → Tech Debt).
+const MIN_PARAGRAPHS = 5;
+const MAX_PARAGRAPHS = 10;
+
+function clampParagraphs(n?: number): number | undefined {
+  if (n === undefined) return undefined;
+  return Math.min(MAX_PARAGRAPHS, Math.max(MIN_PARAGRAPHS, Math.trunc(n)));
+}
+
 @Injectable()
 export class BooksService {
   constructor(
@@ -75,7 +85,7 @@ export class BooksService {
         template: { connect: { id: dto.templateId } },
         child: { connect: { id: dto.childId } },
         ...(dto.topicId ? { topic: { connect: { id: dto.topicId } } } : {}),
-        pageCount: dto.pageCount,
+        pageCount: clampParagraphs(dto.pageCount),
         promptText: dto.promptText,
         writingStyle: dto.writingStyle,
         fear: dto.fear,

@@ -70,7 +70,7 @@ const SYSTEM_PROMPT =
 
 function buildPrompt(ctx: StoryContext): string {
   const lines = [
-    `Write a ${ctx.pageCount}-page children's picture-book story.`,
+    `Write a children's picture-book story told in ${ctx.pageCount} short paragraphs.`,
     `Template theme: ${ctx.templateTitle} — ${ctx.templatePrompt}`,
     ctx.topicLabel ? `Life moment / fear to address: ${ctx.topicLabel}` : '',
     ctx.fear ? `The child's specific fear: ${ctx.fear}` : '',
@@ -86,7 +86,7 @@ function buildPrompt(ctx: StoryContext): string {
     '- Use {{friend}} for the main companion character; invent extra tokens like {{wizard}} for other named characters.',
     '- Return JSON: { "title": string, "slots": { token: value }, "pages": [ { "pageNum": number, "text": string, "featuresChild": boolean } ] }.',
     '- "slots" must map every token you used (without braces) to its real value; "child" MUST equal the real name above.',
-    `- "pages" must have exactly ${ctx.pageCount} entries, pageNum 1..${ctx.pageCount}, each 1-3 short sentences.`,
+    `- "pages" must have exactly ${ctx.pageCount} entries (one per paragraph), pageNum 1..${ctx.pageCount}, each a single short paragraph of 2-4 sentences.`,
     '- Set "featuresChild" true on pages where the child is visibly depicted.',
   ];
   return lines.filter(Boolean).join('\n');

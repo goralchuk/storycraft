@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { apiFetch } from '@/lib/api';
 import { createBookAction } from '@/app/actions/books';
+import ParagraphSlider from './ParagraphSlider';
 import Link from 'next/link';
 
 type Template = { id: string; title: string; description: string };
@@ -41,6 +42,7 @@ export default async function NewBookPage() {
             ))}
           </select>
         </label>
+        <ParagraphSlider />
         <button type="submit" style={{ padding: '0.75rem', fontSize: '1rem', cursor: 'pointer' }}>
           Create book
         </button>

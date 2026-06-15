@@ -17,6 +17,25 @@ export default async function DashboardPage() {
   if (!session) redirect('/login');
 
   const userRes = await apiFetch('/users/me');
+  // Distinguish "auth/backend failure" from "genuinely new user". Treating a
+  // non-OK response as a nameless user wrongly sends existing users to onboarding.
+  // Render an escape hatch (sign out) instead of a dead-end or a redirect loop.
+  if (!userRes.ok) {
+    return (
+      <main style={{ padding: '2rem', maxWidth: '500px', margin: '0 auto', textAlign: 'center' }}>
+        <h1>Session problem</h1>
+        <p style={{ color: '#666' }}>
+          Couldn&apos;t load your profile (/users/me returned {userRes.status}). Your session may be
+          stale (e.g. the backend&apos;s JWT secret changed). Sign out and sign in again.
+        </p>
+        <form action={logoutAction} style={{ marginTop: '1.5rem' }}>
+          <button type="submit" style={{ padding: '0.75rem 2rem', fontSize: '1rem', cursor: 'pointer' }}>
+            Sign out
+          </button>
+        </form>
+      </main>
+    );
+  }
   const user = (await userRes.json()) as { name: string | null; email: string };
   if (!user.name) redirect('/onboarding');
 
@@ -60,7 +79,9 @@ export default async function DashboardPage() {
             <tbody>
               {books.map(book => (
                 <tr key={book.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '0.5rem' }}>{book.template.title}</td>
+                  <td style={{ padding: '0.5rem' }}>
+                    <Link href={`/books/${book.id}`}>{book.template.title}</Link>
+                  </td>
                   <td style={{ padding: '0.5rem' }}>{book.child.name}</td>
                   <td style={{ padding: '0.5rem' }}>{book.status}</td>
                   <td style={{ padding: '0.5rem' }}>{new Date(book.createdAt).toLocaleDateString()}</td>

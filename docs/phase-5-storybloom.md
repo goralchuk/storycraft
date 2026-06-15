@@ -4,7 +4,7 @@
 
 Implements the StoryBloom spec (`draft/storybloom_spec.md`): topic/age-based templates, the guided creation form, child photos, DB-configurable AI models, and reuse-ready story storage.
 
-**Status: Phase 5 complete (5.1–5.11).** Data model & seed (5.1), domain API (5.2), settings API (5.3), task queue (5.4), AI contracts + stub + worker (5.5), Gemini text generator (5.6), image generator — stub-only, photo-driven (5.7), runtime text-provider injection (5.8), PDF worker + slot resolution (5.9), MinIO storage + photo upload (5.10), status lifecycle (5.11). Frontend create flow / preview / PDF download live in Phase 7.
+**Status: Phase 5 complete (5.1–5.11).** Data model & seed (5.1), domain API (5.2), settings API (5.3), task queue (5.4), AI contracts + stub + worker (5.5), Gemini text generator (5.6), image generator — stub-only, photo-driven (5.7), runtime text-provider injection (5.8), PDF worker + slot resolution (5.9), MinIO storage + photo upload (5.10), status lifecycle (5.11). Frontend create flow / preview / PDF download live in Phase 6 (Frontend Polish).
 
 Key decisions driving the phase:
 - AI model selection lives in the DB (`AppSettings` singleton), not env vars. API keys stay in env.
@@ -225,7 +225,7 @@ Makes generation progress observable so the frontend can poll.
 
 - A book is created `PENDING` (schema default). The worker sets **`PROCESSING`** on pickup, then **`DONE`** on success (in the same update that writes `title`/`slots`/`pdfUrl`).
 - The whole generation body is wrapped in `try/catch`: on any failure the book is set **`FAILED`** and the error is **rethrown**, so BullMQ records the job as failed (and retries it if the queue is later configured with attempts). The idempotent page-reset makes retries safe.
-- `status` is returned by both `GET /books` and `GET /books/:id`, so the frontend polls a book until it reaches `DONE`/`FAILED` (Phase 7.4).
+- `status` is returned by both `GET /books` and `GET /books/:id`, so the frontend polls a book until it reaches `DONE`/`FAILED` (Phase 6.4).
 - **No schema change.** The error reason is logged (not persisted); the granular `Task` table stays unused — state lives on `Book.status` for the single-job worker. Persisting a failure reason on the book is a possible later refinement.
 
 This closes **Phase 5** — the full create → generate → store → poll pipeline runs end-to-end on the stub, with Gemini text available via settings.
@@ -280,8 +280,19 @@ This closes **Phase 5** — the full create → generate → store → poll pipe
 
 ---
 
+## Code Review Tooling (added after 5.11)
+
+A standalone third-party (Qwen) code-review harness was added alongside Phase 5 — independent of the app runtime:
+
+- `scripts/review.mjs` + `review.config.json` — on-demand review over the branch diff (`main...HEAD`) via the OpenAI-compatible DashScope API. Model/provider live in the config; the API key stays in env (`QWEN_API_KEY`); findings are written to `reviews/<branch>.md`. Run locally via the `/qwen-review` command.
+- `.github/workflows/qwen-review.yml` — an **inert CI stub**; the same script gates PRs once `pull_request` is enabled (see ROADMAP → Tech Debt).
+- **First real run** was against the Phase 5 diff. It surfaced that `/settings` is open to any authenticated user (no role on `User`) — now tracked as RBAC hardening in **Phase 8** / Tech Debt.
+
+---
+
 ## Next (beyond Phase 5)
 
-- **Phase 6** — subscriptions & payments (Stripe).
-- **Phase 7** — frontend: StoryBloom create flow, preview, **status polling (7.4)**, PDF download.
-- **Post-launch / Phase 8** — real image provider behind `ImageGenerator` (+ a mirror `DispatchingImageGenerator`), `StoryPreset` reuse library (the `slots` + `featuresChild` hooks are already in place).
+- **Phase 6** — frontend flow & book preview: landing + CTA routing, create wizard, **HTML spreads**, **status polling (6.5)**, **PDF on demand** (PDF build moves out of the worker).
+- **Phase 7** — characters & avatars: real Gemini image provider behind `ImageGenerator` (+ a mirror `DispatchingImageGenerator`), `Avatar` model (max 5/child), targeted regeneration of `featuresChild` panels.
+- **Phase 8** — subscriptions & payments (Stripe).
+- **Phase 9 / later** — `StoryPreset` reuse library (the `slots` + `featuresChild` hooks are already in place), ratings, referrals.
