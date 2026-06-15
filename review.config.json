@@ -1,0 +1,8 @@
+{
+  "provider": "dashscope",
+  "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  "model": "qwen3-coder-flash",
+  "baseRef": "main",
+  "failOn": "high",
+  "timeoutMs": 120000
+}

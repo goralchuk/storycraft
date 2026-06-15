@@ -11,7 +11,7 @@ storycraft/
 ├── DRAFT.md
 ├── docs/
 ├── backend/                    # NestJS
-│   ├── Dockerfile              # Multi-stage, node:20-alpine
+│   ├── Dockerfile              # Multi-stage, node:24-alpine
 │   ├── .env                    # Local only, gitignored
 │   ├── .env.example            # Committed, no real values
 │   ├── prisma.config.ts
@@ -143,6 +143,7 @@ AI providers and models are selected at runtime from a DB-backed typed `AppSetti
 
 ## Phase 8 — Optional / Later
 
+- Security hardening — role-based access control: add a `role` to `User` and restrict admin-only endpoints (`/settings`, and any future admin APIs) to admins. _(Surfaced by code review of Phase 5: `/settings` is currently open to any authenticated user.)_
 - Ratings system on books
 - Referral program
 - Mobile app (App Store + Play Market)
