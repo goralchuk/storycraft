@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { logoutAction } from "@/app/actions/auth";
 
 // Shared top navigation for authenticated screens. Presentational: balance and
 // user name are passed in by the app-shell layout (server-fetched from /users/me).
@@ -57,11 +58,15 @@ export default function Navbar({
         ✨ Создать книгу
       </Link>
 
-      <div className="flex items-center gap-2.5 pl-1.5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#ffe0cd] font-display text-[17px] font-bold text-primary-dark shadow-[0_2px_8px_rgba(120,90,60,0.12)]">
+      <form action={logoutAction} className="flex items-center pl-1.5">
+        <button
+          type="submit"
+          title="Выйти"
+          className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#ffe0cd] font-display text-[17px] font-bold text-primary-dark shadow-[0_2px_8px_rgba(120,90,60,0.12)] transition hover:brightness-95"
+        >
           {initial}
-        </div>
-      </div>
+        </button>
+      </form>
     </header>
   );
 }
