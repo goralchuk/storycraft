@@ -186,6 +186,8 @@ export class BooksService {
       where: { id: book.id },
       data: {
         status: 'PENDING',
+        stage: null,
+        progress: 0,
         // Inherit the child's questionnaire photo when none was supplied here.
         ...(book.photoUrl == null && book.child?.photoUrl
           ? { photoUrl: book.child.photoUrl }

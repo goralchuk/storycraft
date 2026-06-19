@@ -12,7 +12,7 @@ Phase 6 turns StoryCraft into a paid product driven by an internal **coin** curr
 | 6.7 | Book DRAFT lifecycle — pay-at-config, resume, submit | ✅ Done |
 | 6.8–6.9 | Heroes (child-owned, metered generation) | ✅ Done |
 | 6.10 | Pricing wiring — page-tier surcharges | ✅ Done |
-| 6.11 | Generation stages (4 named stages + progress) | ⏳ Pending |
+| 6.11 | Generation stages (4 named stages + progress) | ✅ Done |
 | 6.12–6.19 | Design system + redesigned screens + 3-step wizard | ⏳ Pending |
 | 6.20 | Book reader (HTML spreads + on-demand PDF) | ⏳ Pending |
 | 6.21 | Wallet — balance, history, coin packages | ⏳ Pending |
@@ -22,6 +22,7 @@ OpenSpec changes (archived under `openspec/changes/archive/`):
 - `book-draft-lifecycle` → main spec `book-lifecycle`
 - `child-heroes` → main spec `heroes`
 - `page-tier-pricing` → main spec `page-pricing`
+- `generation-stages` → main spec `generation-progress`
 
 ---
 
@@ -70,6 +71,12 @@ Verified live: 21/21 (metering, 402 gating, companion limit/billing, MAIN protec
 Book length is a priced tier: **12** (included), **16** (+150), **20** (+300), **24** (+450), replacing the old 5–10 paragraph slider (`Book.pageCount` now holds the tier). The surcharge is charged **once, at submit** (atomically with `DRAFT → PENDING`) on top of the book-type cost; an unaffordable surcharge returns 402 and keeps the draft. `PATCH /books/:id` validates the tier. Step-2 of `/books/new` gained a tier selector.
 
 Verified live: 14/14 (tier validation, surcharge debited once for 20, no surcharge for 12, unaffordable → 402 with draft kept and book-type not re-charged) + frontend build.
+
+### 6.11 — Generation stages & progress
+
+The book carries a `stage` (`HEROES → STORY → ILLUSTRATIONS → ASSEMBLE`) and a `progress` (0–100), written by the worker as it runs (illustrations get the widest band, incremented per image; 100 on `DONE`). `submit` resets them; a `FAILED` book keeps its last stage. `GET /books/:id` returns both, and the viewer shows a labeled stage + progress bar on top of the existing poll.
+
+Verified live: 8/8 (stage sequence in order, monotonic progress, reset on submit, 100 on DONE, failure keeps the stage) + frontend build.
 
 ---
 

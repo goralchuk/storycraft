@@ -289,6 +289,8 @@ Returns the current user's active `DRAFT` (with `template`, `child`, `topic`) fo
 ### `GET /books/:id` 🔒
 Returns a single book owned by the current user, including `pages` (with `illustrations`), `template`, `child`, and `topic`.
 
+While generating, the book also carries `stage` (`HEROES | STORY | ILLUSTRATIONS | ASSEMBLE`, or `null`) and `progress` (0–100) for the viewer to poll. `progress` is 100 on `DONE`; a `FAILED` book keeps the last `stage`.
+
 Stored object keys (the `pdfUrl`, uploaded `photoUrl`, and illustration `imageUrl` values) are resolved to **time-limited signed URLs** in the response; values that are already absolute URLs (external/stub images) are returned unchanged.
 
 **Response `200`** — book object.

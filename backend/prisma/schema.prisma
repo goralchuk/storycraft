@@ -32,6 +32,13 @@ enum BookType {
   TEMPLATE
 }
 
+enum BookStage {
+  HEROES
+  STORY
+  ILLUSTRATIONS
+  ASSEMBLE
+}
+
 enum TaskStatus {
   QUEUED
   RUNNING
@@ -170,6 +177,8 @@ model Book {
   photoUrl     String?
   slots        Json?
   status       BookStatus    @default(PENDING)
+  stage        BookStage?
+  progress     Int           @default(0)
   pdfUrl       String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

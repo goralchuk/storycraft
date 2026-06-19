@@ -6,14 +6,24 @@ import StatusPoller from './StatusPoller';
 
 type Illustration = { id: string; imageUrl: string | null; featuresChild: boolean };
 type Page = { id: string; pageNum: number; text: string | null; illustrations: Illustration[] };
+type BookStage = 'HEROES' | 'STORY' | 'ILLUSTRATIONS' | 'ASSEMBLE' | null;
 type Book = {
   id: string;
   title: string | null;
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
+  stage: BookStage;
+  progress: number;
   slots: Record<string, string> | null;
   pages: Page[];
   template: { title: string };
   child: { name: string };
+};
+
+const STAGE_LABEL: Record<NonNullable<BookStage>, string> = {
+  HEROES: 'Creating heroes',
+  STORY: 'Writing the story',
+  ILLUSTRATIONS: 'Drawing illustrations',
+  ASSEMBLE: 'Assembling the book',
 };
 
 // Page text is stored slot-tokenized ({{child}}); resolve for display.
@@ -44,7 +54,22 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
       {inProgress && (
         <>
-          <p>Generating your book… this page refreshes automatically.</p>
+          <p style={{ fontWeight: 500 }}>
+            {book.stage ? STAGE_LABEL[book.stage] : 'Queued'}… {book.progress}%
+          </p>
+          <div style={{ height: 10, background: '#eee', borderRadius: 999, overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${book.progress}%`,
+                height: '100%',
+                background: '#7c3aed',
+                transition: 'width 0.4s',
+              }}
+            />
+          </div>
+          <p style={{ color: '#888', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+            This page refreshes automatically.
+          </p>
           <StatusPoller />
         </>
       )}

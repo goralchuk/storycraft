@@ -36,12 +36,18 @@ export class BookGenerationProcessor extends WorkerHost {
       return;
     }
 
+    // Stage 1 — preparing characters (heroes are pre-generated; brief marker).
     await this.prisma.book.update({
       where: { id: bookId },
-      data: { status: BookStatus.PROCESSING },
+      data: { status: BookStatus.PROCESSING, stage: 'HEROES', progress: 5 },
     });
 
     try {
+      // Stage 2 — writing the story.
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { stage: 'STORY', progress: 15 },
+      });
       const story = await this.textGen.generateText({
         childName: book.child.name,
         childInterests: book.child.interests,
@@ -61,8 +67,15 @@ export class BookGenerationProcessor extends WorkerHost {
       // Re-generate cleanly so re-runs are idempotent (cascades delete pages + illustrations).
       await this.prisma.bookPage.deleteMany({ where: { bookId } });
 
+      // Stage 3 — drawing illustrations (widest band; per-image progress 30→90%).
+      // Enter the stage before the first image so a failure here is attributed to it.
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { stage: 'ILLUSTRATIONS', progress: 30 },
+      });
+      const total = story.pages.length;
       const pdfPages: PdfPage[] = [];
-      for (const page of story.pages) {
+      for (const [i, page] of story.pages.entries()) {
         const imageUrl = await this.imageGen.generateImage({
           pageText: page.text,
           featuresChild: page.featuresChild,
@@ -80,9 +93,20 @@ export class BookGenerationProcessor extends WorkerHost {
           },
         });
 
+        await this.prisma.book.update({
+          where: { id: bookId },
+          data: { stage: 'ILLUSTRATIONS', progress: 30 + Math.round((60 * (i + 1)) / total) },
+        });
+
         // Slots are resolved here for the PDF; pages stay tokenized in the DB.
         pdfPages.push({ text: resolveSlots(page.text, story.slots), imageUrl });
       }
+
+      // Stage 4 — assembling the book.
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { stage: 'ASSEMBLE', progress: 90 },
+      });
 
       const pdf = await this.pdf.generate({
         title: resolveSlots(story.title, story.slots),
@@ -102,6 +126,7 @@ export class BookGenerationProcessor extends WorkerHost {
           slots: story.slots,
           pdfUrl: pdfKey,
           status: BookStatus.DONE,
+          progress: 100,
         },
       });
 
