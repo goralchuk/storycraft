@@ -1,3 +1,12 @@
+# Working Process
+
+The development cycle, in order:
+
+1. **Plan.** From ideas and drafts, refine the shared `ROADMAP.md`, then commit the accepted plan. `ROADMAP.md` is the plan — edit only unimplemented phases.
+2. **Implement via OpenSpec.** Take tasks from `ROADMAP.md` in order and work each one through the full OpenSpec cycle (propose → implement → verify). Fully close one change (verify → sync specs → archive) before opening the next.
+3. **Document.** After finishing a task, update the docs in `docs/` — one document per phase (`docs/phase-N-*.md`).
+4. **Commit, don't push.** Make a Git commit when the task is done. **Never `git push` without my explicit permission.**
+
 # Development Rules
 ## 1. Implementation Analysis
 No guessing. If something is unclear, ask clarifying questions.
@@ -12,7 +21,7 @@ Clean up after yourself: if functionality is no longer used, remove it. Remove o
 ## 4. Complex Tasks – Composition
 For complex tasks, write a plan: an action and a verification method that will validate the result.
 ## 5. Git Commits
-Do not make Git commits unless explicitly requested.
+Commit when a task is complete (see Working Process). Never `git push` without explicit permission.
 ## 6. Stage Documentation
 After completing a stage, create a stage description file in the `docs/` folder. Wait for review before making edits.
 ## 7. API Documentation
