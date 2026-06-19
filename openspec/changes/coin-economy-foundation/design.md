@@ -30,7 +30,7 @@ Debit/credit run as one `prisma.$transaction`: re-read balance, guard `balance -
 Cache the active catalog under a single key (e.g. `pricing:active`) reusing the existing Redis connection config. `GET /pricing` reads cache → on miss loads DB and sets the key; `PATCH /pricing/:key` writes DB then deletes the key. Rationale: the catalog is small and read-mostly; a single key keeps invalidation trivial. No TTL needed because writes always invalidate (a short safety TTL is acceptable).
 
 **Frontend uses the Next.js data cache under a tag.**
-The pricing fetch helper tags the request (e.g. `tag: 'pricing'`); the admin update path calls `revalidateTag('pricing')`. Rationale: matches the App Router SSR approach already in use and avoids a per-request round trip; the admin mutation is the single invalidation point.
+The pricing fetch helper tags the request (`next: { tags: ['pricing'] }`); the admin update Server Action calls `updateTag('pricing')`. Rationale: matches the App Router SSR approach already in use and avoids a per-request round trip; the admin mutation is the single invalidation point. Note: this Next version splits the old `revalidateTag(tag)` into `revalidateTag(tag, profile)` (stale-while-revalidate) and `updateTag(tag)` (read-your-own-writes in Server Actions) — `updateTag` is the correct fit for an admin saving a price and expecting the new value immediately.
 
 **Seeding is idempotent and email-driven for admin.**
 Extend `seed.ts` to upsert all `PriceItem` rows and to set `role = ADMIN` on the user with email `goralchuk.r@gmail.com` if present. New-user defaults (`balance = 500`, `role = USER`) live as Prisma schema defaults so signup needs no extra code.

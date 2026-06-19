@@ -336,11 +336,9 @@ Store `key` as the child's or book's `photoUrl` (durable); `url` is a time-limit
 
 ## Settings
 
-Application-wide AI model configuration (singleton). Requires authentication.
+Application-wide AI model configuration (singleton). **Admin only** — requires an authenticated user whose `role` is `ADMIN` (enforced by `RolesGuard`). Non-admins receive `403`.
 
-> Not yet restricted to admins — there is no role on `User` yet. Treat as admin-only.
-
-### `GET /settings` 🔒
+### `GET /settings` 🔒 👑
 Returns the current AI model settings.
 
 **Response `200`**
@@ -357,7 +355,7 @@ Returns the current AI model settings.
 
 ---
 
-### `PATCH /settings` 🔒
+### `PATCH /settings` 🔒 👑
 Updates AI model settings.
 
 **Body** _(all fields optional)_
@@ -371,3 +369,47 @@ Updates AI model settings.
 ```
 
 **Response `200`** — updated settings object.
+
+**Response `403`** — caller is not an admin.
+
+---
+
+## Pricing
+
+Coin price catalog (`PriceItem`). Amounts are the single source of truth for coin costs (books, page tiers, hero generations) and coin packages. The read endpoint is cached in Redis; admin updates invalidate the cache.
+
+🔒 = requires authentication · 👑 = requires `ADMIN` role.
+
+### `GET /pricing` 🔒
+Returns the active price catalog, served from cache (populated from the DB on a miss).
+
+**Response `200`**
+```json
+[
+  {
+    "key": "BOOK_UNIQUE",
+    "label": "Unique book",
+    "category": "BOOK | PAGE | HERO | PACK",
+    "amount": 500,
+    "active": true
+  }
+]
+```
+
+Seeded keys: `BOOK_UNIQUE` (500), `BOOK_TEMPLATE` (300), `PAGE_16` (150), `PAGE_20` (300), `PAGE_24` (450), `HERO_TOPUP` (100), `COMPANION` (100), and coin packages `PACK_300`, `PACK_800`, `PACK_2000`, `PACK_5000`.
+
+---
+
+### `PATCH /pricing/:key` 🔒 👑
+Updates a price item's `amount` and invalidates the pricing cache.
+
+**Body**
+```json
+{ "amount": 600 }
+```
+
+**Response `200`** — updated price item.
+
+**Response `403`** — caller is not an admin.
+
+**Response `404`** — no price item with that key.

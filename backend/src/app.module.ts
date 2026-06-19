@@ -13,6 +13,8 @@ import { TopicsModule } from './topics/topics.module';
 import { BooksModule } from './books/books.module';
 import { SettingsModule } from './settings/settings.module';
 import { StorageModule } from './storage/storage.module';
+import { CoinModule } from './coin/coin.module';
+import { PricingModule } from './pricing/pricing.module';
 import { validate } from './config/env.schema';
 import type { Env } from './config/env.schema';
 
@@ -37,6 +39,8 @@ import type { Env } from './config/env.schema';
     BooksModule,
     SettingsModule,
     StorageModule,
+    CoinModule,
+    PricingModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

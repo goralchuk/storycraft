@@ -16,6 +16,22 @@ const topics = [
   { id: 'custom', icon: '✏️', label: 'Something else…', prompts: [] },
 ];
 
+const ADMIN_EMAIL = 'goralchuk.r@gmail.com';
+
+const priceItems = [
+  { key: 'BOOK_UNIQUE', label: 'Unique book', category: 'BOOK', amount: 500 },
+  { key: 'BOOK_TEMPLATE', label: 'Template book', category: 'BOOK', amount: 300 },
+  { key: 'PAGE_16', label: '16 pages', category: 'PAGE', amount: 150 },
+  { key: 'PAGE_20', label: '20 pages', category: 'PAGE', amount: 300 },
+  { key: 'PAGE_24', label: '24 pages', category: 'PAGE', amount: 450 },
+  { key: 'HERO_TOPUP', label: '3 more hero generations', category: 'HERO', amount: 100 },
+  { key: 'COMPANION', label: 'Extra companion hero', category: 'HERO', amount: 100 },
+  { key: 'PACK_300', label: '300 coins', category: 'PACK', amount: 300 },
+  { key: 'PACK_800', label: '800 coins', category: 'PACK', amount: 800 },
+  { key: 'PACK_2000', label: '2000 coins', category: 'PACK', amount: 2000 },
+  { key: 'PACK_5000', label: '5000 coins', category: 'PACK', amount: 5000 },
+];
+
 const templates = [
   { id: 'tpl-enchanted-forest', title: 'The Enchanted Forest', icon: '🌳', category: TemplateCategory.FANTASY, description: 'A magical woodland adventure where courage grows like the trees.', ageRange: '3–7', availablePages: [12, 16, 20], pageCount: 16, defaultTone: 'whimsical and gentle', badge: 'Popular', coverColor: '#ede0ff', tags: [{ label: 'Magic', bg: '#ede0ff', color: '#7c3aed' }], prompt: 'A whimsical fantasy set in an enchanted forest where the hero meets kind magical creatures and finds their courage.' },
   { id: 'tpl-brave-explorer', title: 'The Brave Explorer', icon: '🧭', category: TemplateCategory.ADVENTURE, description: 'A daring journey across maps, mountains and hidden treasures.', ageRange: '4–8', availablePages: [16, 20, 24], pageCount: 20, defaultTone: 'exciting and bold', badge: 'New', coverColor: '#fff6f0', tags: [{ label: 'Adventure', bg: '#fff6f0', color: '#c0709a' }], prompt: 'An exciting adventure where the hero explores unknown lands, overcomes obstacles and discovers their inner bravery.' },
@@ -37,7 +53,24 @@ async function main() {
   // Singleton AI settings — create with defaults; leave existing values untouched on reseed.
   await prisma.appSettings.upsert({ where: { id: 'singleton' }, create: {}, update: {} });
 
-  console.log(`Seeded ${topics.length} topics, ${templates.length} templates, AppSettings singleton.`);
+  for (const item of priceItems) {
+    await prisma.priceItem.upsert({ where: { key: item.key }, create: item, update: item });
+  }
+
+  // Promote the designated admin if that user already exists.
+  const admin = await prisma.user.updateMany({
+    where: { email: ADMIN_EMAIL },
+    data: { role: 'ADMIN' },
+  });
+  console.log(
+    admin.count > 0
+      ? `Admin role set on ${ADMIN_EMAIL}.`
+      : `Admin ${ADMIN_EMAIL} not found yet — sign in once, then re-run seed.`,
+  );
+
+  console.log(
+    `Seeded ${topics.length} topics, ${templates.length} templates, ${priceItems.length} price items, AppSettings singleton.`,
+  );
 }
 
 main()

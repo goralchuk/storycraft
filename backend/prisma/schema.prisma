@@ -55,21 +55,29 @@ enum WritingStyle {
   GENTLE
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String?
   avatarUrl     String?
   googleId      String?   @unique
+  role          Role      @default(USER)
+  balance       Int       @default(500)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  children      Child[]
-  books         Book[]
-  subscription  Subscription?
-  ratingsGiven  Rating[]
-  referralsSent Referral[] @relation("referrer")
-  referralUsed  Referral?  @relation("referee")
+  children         Child[]
+  books            Book[]
+  subscription     Subscription?
+  ratingsGiven     Rating[]
+  referralsSent    Referral[]        @relation("referrer")
+  referralUsed     Referral?         @relation("referee")
+  coinTransactions CoinTransaction[]
 }
 
 model Child {
@@ -228,4 +236,28 @@ model AppSettings {
   imageProvider String   @default("stub")
   imageModel    String   @default("dall-e-3")
   updatedAt     DateTime @updatedAt
+}
+
+model CoinTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String
+  amount    Int
+  isIn      Boolean
+  bookId    String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PriceItem {
+  key       String   @id
+  label     String
+  category  String
+  amount    Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
