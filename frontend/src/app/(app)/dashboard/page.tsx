@@ -82,7 +82,7 @@ export default async function DashboardPage() {
 
       {books.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-          <p style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>You haven't created any books yet.</p>
+          <p style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>You haven&apos;t created any books yet.</p>
           <Link href="/books/new">
             <button style={{ padding: '0.75rem 2rem', fontSize: '1rem', cursor: 'pointer' }}>
               Create your first book
