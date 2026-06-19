@@ -104,6 +104,14 @@ export class BookGenerationProcessor extends WorkerHost {
           status: BookStatus.DONE,
         },
       });
+
+      // Completing a book refreshes free hero generations for that child.
+      if (book.childId) {
+        await this.prisma.hero.updateMany({
+          where: { childId: book.childId },
+          data: { freeAttempts: 3 },
+        });
+      }
     } catch (err) {
       await this.prisma.book.update({
         where: { id: bookId },

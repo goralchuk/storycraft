@@ -351,6 +351,63 @@ Submits a configured `DRAFT` for generation: validates a child is set, transitio
 
 ---
 
+## Heroes
+
+Child-owned characters: one non-removable `MAIN` hero plus up to 4 companions (`PET | SIBLING | FRIEND | MAGIC`), **max 5 per child**. Reusable across books. Avatar generation is metered: **3 free** per hero, then `HERO_TOPUP` (100🪙) buys 3 more; adding a companion costs `COMPANION` (100🪙). A hero's free attempts reset to 3 when a book for its child reaches `DONE`.
+
+### `GET /children/:childId/heroes` 🔒
+Lists the child's heroes, ensuring a `MAIN` hero exists (created free if absent). Each hero's `imageKey` is returned as a signed `imageUrl`.
+
+**Response `200`**
+```json
+[
+  {
+    "id": "string",
+    "role": "MAIN | PET | SIBLING | FRIEND | MAGIC",
+    "name": "string",
+    "freeAttempts": 3,
+    "status": "IDLE | GENERATING | DONE",
+    "imageUrl": "string | null"
+  }
+]
+```
+
+---
+
+### `POST /children/:childId/heroes` 🔒
+Adds a companion. Debits `COMPANION` (100🪙).
+
+**Body** — `{ "role": "PET | SIBLING | FRIEND | MAGIC", "name": "string" }`
+
+**Response `201`** — created hero.
+
+**Response `400`** — role is `MAIN`. · **`402`** — insufficient coins. · **`409`** — 5-hero limit reached.
+
+---
+
+### `DELETE /heroes/:id` 🔒
+Removes a companion. **Response `204`**. **`409`** — cannot delete the `MAIN` hero.
+
+---
+
+### `POST /heroes/:id/generate` 🔒
+Generates the hero's avatar (style + description prompt), stores it, and consumes one free attempt.
+
+**Body** _(optional)_ — `{ "style": "string", "description": "string" }`
+
+**Response `200`** — updated hero (with `imageUrl`).
+
+**Response `402`** — no free generations left (top up first); nothing is generated.
+
+---
+
+### `POST /heroes/:id/topup` 🔒
+Debits `HERO_TOPUP` (100🪙) and adds 3 free generations.
+
+**Response `200`** — updated hero. · **`402`** — insufficient coins.
+
+---
+
 ## Uploads
 
 All endpoints require authentication.

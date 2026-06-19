@@ -66,6 +66,20 @@ enum Role {
   ADMIN
 }
 
+enum HeroRole {
+  MAIN
+  PET
+  SIBLING
+  FRIEND
+  MAGIC
+}
+
+enum HeroStatus {
+  IDLE
+  GENERATING
+  DONE
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -97,8 +111,27 @@ model Child {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  books Book[]
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  books  Book[]
+  heroes Hero[]
+}
+
+model Hero {
+  id           String     @id @default(cuid())
+  childId      String
+  role         HeroRole
+  name         String
+  style        String?
+  description  String?
+  imageKey     String?
+  freeAttempts Int        @default(3)
+  status       HeroStatus @default(IDLE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
 }
 
 model Template {

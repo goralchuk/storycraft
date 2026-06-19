@@ -39,12 +39,14 @@ export default async function DashboardPage() {
   const user = (await userRes.json()) as { name: string | null; email: string };
   if (!user.name) redirect('/onboarding');
 
-  const [booksRes, draftRes] = await Promise.all([
+  const [booksRes, draftRes, childrenRes] = await Promise.all([
     apiFetch('/books', { cache: 'no-store' }),
     apiFetch('/books/draft', { cache: 'no-store' }),
+    apiFetch('/children', { cache: 'no-store' }),
   ]);
   const books = (await booksRes.json()) as Book[];
   const draft = (draftRes.ok ? await draftRes.json() : null) as { id: string } | null;
+  const children = (childrenRes.ok ? await childrenRes.json() : []) as { id: string; name: string }[];
 
   return (
     <main style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
@@ -61,6 +63,20 @@ export default async function DashboardPage() {
           <Link href="/books/new">
             <button style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>Continue draft</button>
           </Link>
+        </div>
+      )}
+
+      {children.length > 0 && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1rem' }}>Children & heroes</h2>
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {children.map((c) => (
+              <li key={c.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
+                <span>{c.name}</span>
+                <Link href={`/children/${c.id}/heroes`}>Manage heroes →</Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
