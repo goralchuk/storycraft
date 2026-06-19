@@ -119,53 +119,57 @@ AI providers and models are selected at runtime from a DB-backed typed `AppSetti
 
 ---
 
-## Phase 6 — Frontend Flow & Book Preview
+## Phase 6 — Coin Economy, Heroes, Pricing Admin & Full Redesign
 
-The end-to-end user journey on the current generation pipeline (Gemini text, stub/echo images): landing → create → preview → PDF. Books render as **HTML spreads**; PDF is produced **on demand**, not eagerly in the worker.
+Implements the prototype flow (`draft/design/STORYCRAFT_FLOW.md`): internal **coin** currency, paid book creation with **draft persistence**, child-owned **reusable heroes** with metered generation, a **3-step wizard**, **wallet**, an admin-editable **pricing catalog** (cached), and a full visual redesign ported from the prototype. Replaces the earlier "Frontend Flow" + "Characters & Avatars" phases.
 
-| # | Task | Verification |
-|---|------|-------------|
-| 6.1 | Landing page + CTA routing — guest → Google sign-in; signed-in with a child → create; no child → child form → create | Landing renders; CTA routes by auth/child state |
-| 6.2 | Children management page — add/edit/delete, photo upload (`POST /uploads/photo`) | Full CRUD from the UI; photo persists |
-| 6.3 | Book creation wizard (`/books/new`) — child select/add → template + page count → topic/style/prompt/photo | `POST /books` sends the full StoryBloom DTO |
-| 6.4 | HTML spread renderer — `/books/[id]` lays out pages as book spreads (slots resolved, images placed) | Generated book renders as readable spreads |
-| 6.5 | Book status polling — `PENDING → PROCESSING → DONE / FAILED` | Status updates without refresh; viewer appears on `DONE` |
-| 6.6 | PDF on demand — generate + download from the HTML layout on click; remove eager PDF build from the worker | Download button returns a PDF; worker no longer builds PDF |
-| 6.7 | Profile page — edit name, avatar | Changes persist |
-
----
-
-## Phase 7 — Characters & Avatars (real image generation)
-
-Real, style-matched illustrations and reusable hero avatars. Enables the "from scratch" mode and cheap targeted regeneration. Image model: Gemini (free tier; model id via `AppSettings.imageModel`).
+Decisions: internal coin economy only (wallet "buy" credits coins as a stub — real-money purchase is Phase 7); coins replace subscriptions; App Router pages; heroes are owned by `Child` and reusable; per-hero free-generation counter (3 free, +100 for 3 more) resets to 3 on book completion; pricing lives in a DB catalog (`PriceItem`) cached in Redis (backend) and the Next.js data cache (frontend), edited via an admin-only API that invalidates both caches.
 
 | # | Task | Verification |
 |---|------|-------------|
-| 7.1 | `GeminiImageGenerator` + `DispatchingImageGenerator` — image provider/model from `AppSettings`, output stored via `StorageService` | Switching `imageProvider` swaps stub/Gemini; real image stored, signed URL on read |
-| 7.2 | `Avatar` model — linked to `Child` (style + image key), max 5 per child | Migrate clean; create avatar; 6th rejected |
-| 7.3 | Avatar generation — main hero from child photo + description + chosen style | Generates + stores a style-matched avatar |
-| 7.4 | Avatar selection in the create wizard — reuse a saved avatar or generate a new one | Wizard offers saved avatars for the chosen style |
-| 7.5 | Targeted regeneration — re-render only `featuresChild` panels when the avatar changes | Swapping avatar regenerates hero panels only; text untouched |
+| 6.1 | **Roles & RBAC** — `Role` enum on `User`; `RolesGuard` + `@Roles`; protect `/settings` + future admin APIs; seed admin by email | non-admin → 403 on admin endpoint; admin passes; `/settings` now guarded |
+| 6.2 | **Coins data model** — `User.balance` (default 500), `CoinTransaction` (label, amount, isIn, bookId?) | migrate clean; new user = 500; debit logs txn |
+| 6.3 | **Pricing catalog** — `PriceItem` (key, label, category, amount, active); seed all costs + coin packages | migrate clean; seed rows present |
+| 6.4 | **Pricing API + cache** — public `GET /pricing` (Redis-cached); admin `PATCH /pricing/:key` → DB write + cache invalidate | GET served from cache; PATCH reflects after invalidation; non-admin PATCH → 403 |
+| 6.5 | **Frontend pricing** — fetch `/pricing` via Next data cache + tag; admin update triggers `revalidateTag` | prices render w/o per-request DB hit; updated price appears after admin change |
+| 6.6 | **Coin service** — atomic debit/credit + balance guard; insufficient-funds error; reads amounts from `PriceItem` | debit below 0 rejected; balance + txn atomic |
+| 6.7 | **Book DRAFT lifecycle** — `DRAFT` status; pay-at-config creates DRAFT + debits; resume restores wizard step 2 | pay → exit → DRAFT persists; resume → step 2; not re-charged |
+| 6.8 | **Hero model** — `Hero` linked to `Child` (main + ≤4 companions): name, role, style, imageKey, status, free-attempt counter | migrate clean; 5th rejected; counter starts at 3 |
+| 6.9 | **Hero generation & billing** — gen avatar from photo+desc+style; −1 attempt; +100 → 3 more; companion +100; counters reset on book completion | 3 free; 4th blocked until topup; companion debits 100; completion resets |
+| 6.10 | **Pricing wiring** — book type (unique 500 / template 300) + page tiers charged at step 1 via `PriceItem` amounts | each choice debits correct amount; insufficient → wallet redirect |
+| 6.11 | **Generation stages** — 4 named stages (heroes→story→illustrations→assemble) + progress on `GET /books/:id` | frontend polls through named stages |
+| 6.12 | **Design system** — port prototype tokens to Tailwind theme (navbar, cards, buttons, coin badge) | shared theme; navbar shows balance |
+| 6.13 | **Landing + Auth** redesigned | matches prototype; CTA → auth/onboarding |
+| 6.14 | **Onboarding** redesigned (2 steps; skip) | name+child saved; skip → empty dashboard |
+| 6.15 | **Dashboard** redesigned — draft banner / book grid / empty state; balance in navbar | three states render; resume works |
+| 6.16 | **Children screen** — CRUD + photo + saved heroes per child | full CRUD; avatars listed |
+| 6.17 | **Wizard step 1** — type + template pick; debit upfront → DRAFT | confirm debits, creates DRAFT, advances |
+| 6.18 | **Wizard step 2** — child, heroes (inline gen), style, topic, pages; template freezes all but main hero | template locks fields; unique editable; inline gen |
+| 6.19 | **Wizard step 3** — start generation; live 4-stage progress; done → dashboard + reader | progress advances; DONE; reader opens |
+| 6.20 | **Book reader** — HTML spreads (slots+images) + on-demand PDF | spreads render; PDF download works |
+| 6.21 | **Wallet** — balance, transaction history, coin packages (buy = stub credit, reads `PriceItem`) | history lists txns; package credits + logs |
 
 ---
 
-## Phase 8 — Subscriptions & Payments
+## Phase 7 — Real Coin Purchases (Stripe)
+
+Replaces the wallet stub-credit with real money → coins. (Subscriptions are dropped in favor of the coin model.)
 
 | # | Task | Verification |
 |---|------|-------------|
-| 8.1 | Stripe products/prices setup (free tier + paid plans) | Prices exist in Stripe dashboard |
-| 8.2 | `SubscriptionsModule` — create checkout session, portal | Redirect to Stripe works |
-| 8.3 | Stripe webhook handler — sync subscription status to DB | Status updates on payment event |
-| 8.4 | Subscription guard on book generation endpoint | Free tier returns `403` when limit hit |
-| 8.5 | Subscription/billing page (frontend) | Checkout + portal links work |
+| 7.1 | Stripe products/prices for coin packages, mapped to `PriceItem` `PACK_*` keys | Prices exist in Stripe dashboard |
+| 7.2 | Checkout session for a coin package | Redirect to Stripe works |
+| 7.3 | Stripe webhook — credit `balance` + log `CoinTransaction` on payment success (idempotent) | Duplicate webhook does not double-credit |
+| 7.4 | Wallet "buy" wired to Stripe checkout (replaces 6.21 stub credit) | Real purchase credits coins end-to-end |
 
 ---
 
-## Phase 9 — Optional / Later
+## Phase 8 — Optional / Later
 
-- Security hardening — role-based access control: add a `role` to `User` and restrict admin-only endpoints (`/settings`, and any future admin APIs) to admins. _(Surfaced by code review of Phase 5: `/settings` is currently open to any authenticated user.)_
 - Ratings system on books
-- Referral program
+- Referral program — earn coins for invites
+- Earn coins via promos / sponsor gifts
+- Template marketplace — sell curated templates for coins
 - Mobile app (App Store + Play Market)
 - Add production-scale image providers (OpenAI DALL-E 3, Stability AI) selectable via `AppSettings`
 - `StoryPreset` reuse library — save curated slot-based books, re-personalize by swapping name/photo/character slots (regenerates only `featuresChild` panels)
