@@ -1,5 +1,7 @@
 # StoryCraft — Development Roadmap
 
+Reports on completed implementations in the folder /docs/
+
 ## Project Structure
 
 ```
