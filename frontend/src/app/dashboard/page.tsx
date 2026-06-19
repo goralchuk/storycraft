@@ -39,8 +39,12 @@ export default async function DashboardPage() {
   const user = (await userRes.json()) as { name: string | null; email: string };
   if (!user.name) redirect('/onboarding');
 
-  const booksRes = await apiFetch('/books');
+  const [booksRes, draftRes] = await Promise.all([
+    apiFetch('/books', { cache: 'no-store' }),
+    apiFetch('/books/draft', { cache: 'no-store' }),
+  ]);
   const books = (await booksRes.json()) as Book[];
+  const draft = (draftRes.ok ? await draftRes.json() : null) as { id: string } | null;
 
   return (
     <main style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
@@ -50,6 +54,15 @@ export default async function DashboardPage() {
           <button type="submit">Sign out</button>
         </form>
       </div>
+
+      {draft && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', marginBottom: '1.5rem', background: '#fff6e6', border: '1px solid #f0c674', borderRadius: '8px' }}>
+          <span>You have a book in progress (paid).</span>
+          <Link href="/books/new">
+            <button style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>Continue draft</button>
+          </Link>
+        </div>
+      )}
 
       {books.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 0' }}>

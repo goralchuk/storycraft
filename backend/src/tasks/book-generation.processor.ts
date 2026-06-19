@@ -27,6 +27,14 @@ export class BookGenerationProcessor extends WorkerHost {
       include: { child: true, template: true, topic: true },
     });
     if (!book) return;
+    if (!book.child) {
+      // A submitted book always has a child; guard defensively against bad data.
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { status: BookStatus.FAILED },
+      });
+      return;
+    }
 
     await this.prisma.book.update({
       where: { id: bookId },
@@ -37,8 +45,12 @@ export class BookGenerationProcessor extends WorkerHost {
       const story = await this.textGen.generateText({
         childName: book.child.name,
         childInterests: book.child.interests,
-        templateTitle: book.template.title,
-        templatePrompt: book.template.prompt,
+        // UNIQUE books have no template; fall back to the user's own prompt.
+        templateTitle: book.template?.title ?? 'A Personalized Story',
+        templatePrompt:
+          book.template?.prompt ??
+          book.promptText ??
+          "A heartwarming, personalized children's story.",
         topicLabel: book.topic?.label,
         promptText: book.promptText,
         writingStyle: book.writingStyle,

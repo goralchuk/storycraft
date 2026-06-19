@@ -256,23 +256,33 @@ Returns a single topic by ID.
 
 All endpoints require authentication. Each book belongs to the authenticated user.
 
+Books follow a **DRAFT lifecycle**: a book is paid for and created as `DRAFT` (`POST /books/draft`), configured (`PATCH /books/:id`), then submitted for generation (`POST /books/:id/submit`), after which it runs `PENDING → PROCESSING → DONE / FAILED`. Coins are charged once, at draft creation.
+
 ### `GET /books` 🔒
-Returns all books for the current user.
+Returns the current user's books, **excluding drafts**.
 
 **Response `200`**
 ```json
 [
   {
     "id": "string",
-    "templateId": "string",
-    "childId": "string",
+    "bookType": "UNIQUE | TEMPLATE",
+    "templateId": "string | null",
+    "childId": "string | null",
     "status": "PENDING | PROCESSING | DONE | FAILED",
     "createdAt": "string (ISO 8601)"
   }
 ]
 ```
 
-`status` reflects the generation lifecycle: a book starts `PENDING` on creation, moves to `PROCESSING` when the worker picks it up, and ends `DONE` (with `pdfUrl` set) or `FAILED`. Poll `GET /books/:id` to track progress.
+Poll `GET /books/:id` to track generation progress.
+
+---
+
+### `GET /books/draft` 🔒
+Returns the current user's active `DRAFT` (with `template`, `child`, `topic`) for resuming, or `null` when there is none. Drives the dashboard "Continue draft" banner.
+
+**Response `200`** — the draft object, or `null`.
 
 ---
 
@@ -287,28 +297,57 @@ Stored object keys (the `pdfUrl`, uploaded `photoUrl`, and illustration `imageUr
 
 ---
 
-### `POST /books` 🔒
-Creates a new book from a template for a child.
+### `POST /books/draft` 🔒
+Pay for and create a `DRAFT` book. Debits the book-type cost (`BOOK_UNIQUE` 500 for `UNIQUE`, `BOOK_TEMPLATE` 300 for `TEMPLATE`) and logs a `CoinTransaction`. If the user already has a draft, that draft is returned **without** charging again.
 
 **Body**
 ```json
 {
-  "templateId": "string",
-  "childId": "string",
-  "topicId": "string (optional)",
-  "pageCount": "number (optional, defaults to 10)",
-  "promptText": "string (optional)",
-  "writingStyle": "WATERCOLOR | ADVENTURE | FUNNY | GENTLE (optional)",
-  "fear": "string (optional)",
-  "photoUrl": "string (optional)"
+  "bookType": "UNIQUE | TEMPLATE",
+  "templateId": "string (optional, for TEMPLATE)"
 }
 ```
 
-When `photoUrl` is omitted, the book inherits the child's `photoUrl`.
+**Response `201`** — the DRAFT book.
 
-**Response `201`** — created book object (includes `template`, `child`, `topic`).
+**Response `402`** — insufficient coins (no book created).
 
-**Response `404`** — child not found or not owned by user.
+---
+
+### `PATCH /books/:id` 🔒
+Updates a `DRAFT` book's configuration. Never charges.
+
+**Body** _(all fields optional)_
+```json
+{
+  "childId": "string",
+  "topicId": "string",
+  "pageCount": "number",
+  "promptText": "string",
+  "writingStyle": "WATERCOLOR | ADVENTURE | FUNNY | GENTLE",
+  "fear": "string",
+  "photoUrl": "string"
+}
+```
+
+**Response `200`** — updated draft.
+
+**Response `404`** — book not found / child not owned by user.
+
+**Response `409`** — book is not a draft.
+
+---
+
+### `POST /books/:id/submit` 🔒
+Submits a configured `DRAFT` for generation: validates a child is set, transitions `DRAFT → PENDING`, and enqueues generation. Never re-charges. When the book has no `photoUrl`, it inherits the child's.
+
+**Response `200`** — the book, now `PENDING`.
+
+**Response `400`** — no child selected.
+
+**Response `404`** — book not found.
+
+**Response `409`** — book is not a draft.
 
 ---
 
