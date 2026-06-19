@@ -315,14 +315,14 @@ Pay for and create a `DRAFT` book. Debits the book-type cost (`BOOK_UNIQUE` 500 
 ---
 
 ### `PATCH /books/:id` 🔒
-Updates a `DRAFT` book's configuration. Never charges.
+Updates a `DRAFT` book's configuration. Never charges. `pageCount` is the page **tier** and must be one of `12 | 16 | 20 | 24`.
 
 **Body** _(all fields optional)_
 ```json
 {
   "childId": "string",
   "topicId": "string",
-  "pageCount": "number",
+  "pageCount": "12 | 16 | 20 | 24",
   "promptText": "string",
   "writingStyle": "WATERCOLOR | ADVENTURE | FUNNY | GENTLE",
   "fear": "string",
@@ -332,6 +332,8 @@ Updates a `DRAFT` book's configuration. Never charges.
 
 **Response `200`** — updated draft.
 
+**Response `400`** — `pageCount` is not a valid tier.
+
 **Response `404`** — book not found / child not owned by user.
 
 **Response `409`** — book is not a draft.
@@ -339,11 +341,13 @@ Updates a `DRAFT` book's configuration. Never charges.
 ---
 
 ### `POST /books/:id/submit` 🔒
-Submits a configured `DRAFT` for generation: validates a child is set, transitions `DRAFT → PENDING`, and enqueues generation. Never re-charges. When the book has no `photoUrl`, it inherits the child's.
+Submits a configured `DRAFT` for generation: validates a child is set, charges the **page-tier surcharge** for the chosen length (`PAGE_16` 150 / `PAGE_20` 300 / `PAGE_24` 450; `12` is free), transitions `DRAFT → PENDING`, and enqueues generation. The book-type cost (charged at draft creation) is not re-charged. When the book has no `photoUrl`, it inherits the child's.
 
 **Response `200`** — the book, now `PENDING`.
 
 **Response `400`** — no child selected.
+
+**Response `402`** — cannot afford the page-tier surcharge; the book stays `DRAFT`.
 
 **Response `404`** — book not found.
 

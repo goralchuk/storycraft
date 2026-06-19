@@ -28,15 +28,14 @@ export type UpdateDraftDto = {
 
 const DRAFT_INCLUDE = { template: true, child: true, topic: true } as const;
 
-// Book length is measured in paragraphs (slider). `pageCount` is repurposed to
-// hold this count until the field is renamed (see ROADMAP → Tech Debt).
-const MIN_PARAGRAPHS = 5;
-const MAX_PARAGRAPHS = 10;
-
-function clampParagraphs(n?: number): number | undefined {
-  if (n === undefined) return undefined;
-  return Math.min(MAX_PARAGRAPHS, Math.max(MIN_PARAGRAPHS, Math.trunc(n)));
-}
+// Book length is a page tier (`pageCount` holds it until the field is renamed —
+// see ROADMAP → Tech Debt). 12 is included; longer tiers cost a surcharge.
+const PAGE_TIER_KEY: Record<number, string> = {
+  16: 'PAGE_16',
+  20: 'PAGE_20',
+  24: 'PAGE_24',
+};
+const PAGE_TIERS = [12, 16, 20, 24];
 
 @Injectable()
 export class BooksService {
@@ -122,6 +121,7 @@ export class BooksService {
       data: {
         bookType: dto.bookType,
         status: 'DRAFT',
+        pageCount: 12, // included tier; surcharge applies to 16/20/24
         ...(dto.templateId ? { template: { connect: { id: dto.templateId } } } : {}),
         user: { connect: { id: dbUser.id } },
       },
@@ -142,6 +142,10 @@ export class BooksService {
   async updateDraft(user: AuthUser, id: string, dto: UpdateDraftDto) {
     const book = await this.requireDraft(user, id);
 
+    if (dto.pageCount !== undefined && !PAGE_TIERS.includes(dto.pageCount)) {
+      throw new BadRequestException(`pageCount must be one of ${PAGE_TIERS.join(', ')}`);
+    }
+
     if (dto.childId) {
       const child = await this.prisma.child.findFirst({
         where: { id: dto.childId, user: { email: user.email } },
@@ -154,7 +158,7 @@ export class BooksService {
       data: {
         ...(dto.childId !== undefined ? { childId: dto.childId } : {}),
         ...(dto.topicId !== undefined ? { topicId: dto.topicId } : {}),
-        ...(dto.pageCount !== undefined ? { pageCount: clampParagraphs(dto.pageCount) } : {}),
+        ...(dto.pageCount !== undefined ? { pageCount: dto.pageCount } : {}),
         ...(dto.promptText !== undefined ? { promptText: dto.promptText } : {}),
         ...(dto.writingStyle !== undefined ? { writingStyle: dto.writingStyle } : {}),
         ...(dto.fear !== undefined ? { fear: dto.fear } : {}),
@@ -164,11 +168,18 @@ export class BooksService {
     });
   }
 
-  // Finalize a draft for generation. Never re-charges.
+  // Finalize a draft for generation. Charges the page-tier surcharge once (the
+  // book-type cost was already paid at draft creation). Keeps the draft on 402.
   async submit(user: AuthUser, id: string) {
     const book = await this.requireDraft(user, id);
     if (!book.childId) {
       throw new BadRequestException('Select a child before generating');
+    }
+
+    const tierKey = PAGE_TIER_KEY[book.pageCount];
+    if (tierKey) {
+      const amount = await this.coin.priceOf(tierKey);
+      await this.coin.debit(book.userId, amount, `Pages: ${book.pageCount}`, book.id);
     }
 
     const updated = await this.prisma.book.update({

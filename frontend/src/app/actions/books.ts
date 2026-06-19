@@ -30,6 +30,8 @@ export async function submitDraftAction(formData: FormData) {
 
   await apiFetch(`/books/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
   const res = await apiFetch(`/books/${id}/submit`, { method: 'POST' });
+  // 402 = can't afford the page-tier surcharge; draft is kept.
+  if (res.status === 402) redirect('/dashboard?error=coins');
   const book = (await res.json()) as { id: string };
   redirect(`/books/${book.id}`);
 }

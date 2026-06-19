@@ -2,8 +2,14 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { apiFetch } from '@/lib/api';
 import { createDraftAction, submitDraftAction } from '@/app/actions/books';
-import ParagraphSlider from './ParagraphSlider';
 import Link from 'next/link';
+
+const PAGE_TIERS = [
+  { pages: 12, label: '12 pages (included)' },
+  { pages: 16, label: '16 pages (+150🪙)' },
+  { pages: 20, label: '20 pages (+300🪙)' },
+  { pages: 24, label: '24 pages (+450🪙)' },
+];
 
 type Template = { id: string; title: string };
 type Child = { id: string; name: string };
@@ -83,7 +89,18 @@ export default async function NewBookPage() {
             ))}
           </select>
         </label>
-        <ParagraphSlider defaultValue={draft.pageCount ?? 7} />
+        <label>
+          <div style={{ marginBottom: '0.25rem', fontWeight: 500 }}>Length</div>
+          <select
+            name="pageCount"
+            defaultValue={PAGE_TIERS.some((t) => t.pages === draft.pageCount) ? draft.pageCount! : 12}
+            style={field}
+          >
+            {PAGE_TIERS.map((t) => (
+              <option key={t.pages} value={t.pages}>{t.label}</option>
+            ))}
+          </select>
+        </label>
         <button type="submit" style={{ padding: '0.75rem', fontSize: '1rem', cursor: 'pointer' }}>
           Generate book
         </button>

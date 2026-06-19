@@ -10,8 +10,8 @@ Phase 6 turns StoryCraft into a paid product driven by an internal **coin** curr
 |---|---|---|
 | 6.1–6.6 | Coin economy foundation — roles/RBAC, coin wallet, pricing catalog | ✅ Done |
 | 6.7 | Book DRAFT lifecycle — pay-at-config, resume, submit | ✅ Done |
-| 6.8–6.9 | Heroes (child-owned, metered generation) | ⏳ Pending |
-| 6.10 | Pricing wiring — page-tier surcharges | ⏳ Pending |
+| 6.8–6.9 | Heroes (child-owned, metered generation) | ✅ Done |
+| 6.10 | Pricing wiring — page-tier surcharges | ✅ Done |
 | 6.11 | Generation stages (4 named stages + progress) | ⏳ Pending |
 | 6.12–6.19 | Design system + redesigned screens + 3-step wizard | ⏳ Pending |
 | 6.20 | Book reader (HTML spreads + on-demand PDF) | ⏳ Pending |
@@ -20,6 +20,8 @@ Phase 6 turns StoryCraft into a paid product driven by an internal **coin** curr
 OpenSpec changes (archived under `openspec/changes/archive/`):
 - `coin-economy-foundation` → main specs `rbac`, `coin-wallet`, `pricing-catalog`
 - `book-draft-lifecycle` → main spec `book-lifecycle`
+- `child-heroes` → main spec `heroes`
+- `page-tier-pricing` → main spec `page-pricing`
 
 ---
 
@@ -51,6 +53,24 @@ Splits book creation into **pay → configure → submit**, backed by a `DRAFT` 
 
 Verified live: 17/17 lifecycle checks (charge-once, resume without re-charge, list excludes drafts, submit gating, insufficient-funds no-orphan) against the exact endpoints the UI calls, plus a clean frontend production build (`/books/new`, `/dashboard` render as dynamic routes). Full browser click-through needs a Google sign-in session and was not automated.
 
+### 6.8–6.9 — Child-owned heroes, metered generation
+
+Heroes give books a consistent cast and add a coin sink.
+
+- **Model** — `Hero` owned by `Child`: one non-removable `MAIN` (derived from the child) + up to 4 companions (`PET | SIBLING | FRIEND | MAGIC`), max 5; `freeAttempts` (default 3), `status`, `imageKey`.
+- **Metered generation** — `POST /heroes/:id/generate` consumes one free attempt atomically (refunded if the image call fails), stores the avatar (real `ImageGenerator`, style+description prompt), and returns 402 when attempts run out. `POST /heroes/:id/topup` debits `HERO_TOPUP` (100) for 3 more. Adding a companion debits `COMPANION` (100). Free attempts reset to 3 when a book for that child reaches `DONE` (worker hook).
+- **API** — `GET/POST /children/:childId/heroes`, `DELETE /heroes/:id` (MAIN protected), `POST /heroes/:id/generate`, `POST /heroes/:id/topup`.
+- **Frontend** — `/children/[id]/heroes` (list, generate, add/remove companion, top-up) + dashboard per-child link.
+- **Deferred**: photo-conditioning (avatars use style+description, not the child's face bytes); using avatars inside book illustration generation.
+
+Verified live: 21/21 (metering, 402 gating, companion limit/billing, MAIN protection, reset-on-completion through the stub worker pipeline) + frontend build.
+
+### 6.10 — Page-tier pricing
+
+Book length is a priced tier: **12** (included), **16** (+150), **20** (+300), **24** (+450), replacing the old 5–10 paragraph slider (`Book.pageCount` now holds the tier). The surcharge is charged **once, at submit** (atomically with `DRAFT → PENDING`) on top of the book-type cost; an unaffordable surcharge returns 402 and keeps the draft. `PATCH /books/:id` validates the tier. Step-2 of `/books/new` gained a tier selector.
+
+Verified live: 14/14 (tier validation, surcharge debited once for 20, no surcharge for 12, unaffordable → 402 with draft kept and book-type not re-charged) + frontend build.
+
 ---
 
 ## Project Structure Added
@@ -65,14 +85,23 @@ backend/src/
 │   ├── pricing.module.ts
 │   ├── pricing.controller.ts           # GET /pricing, admin PATCH /pricing/:key
 │   └── pricing.service.ts              # Redis cache (pricing:active) + invalidation
+├── heroes/
+│   ├── heroes.module.ts
+│   ├── heroes.controller.ts            # /children/:childId/heroes, /heroes/:id/*
+│   └── heroes.service.ts              # ensure MAIN, metered generate, topup, companions
 └── auth/
     ├── decorators/roles.decorator.ts   # @Roles(...)
     └── guards/roles.guard.ts           # DB-backed role check
 
 frontend/src/
 ├── lib/pricing.ts                      # getPricing() via tagged data cache
-└── app/actions/pricing.ts             # admin update → updateTag('pricing')
+└── app/
+    ├── actions/pricing.ts             # admin update → updateTag('pricing')
+    ├── actions/heroes.ts              # generate / add / remove / topup
+    └── children/[id]/heroes/page.tsx  # hero management (temporary UI)
 ```
+
+Books: draft lifecycle (`createDraft/getDraft/updateDraft/submit`), page-tier surcharge at submit; worker resets hero attempts on `DONE`. Models: `Hero` + `HeroRole`/`HeroStatus`; `Book` gained `bookType`, `DRAFT` status, nullable child/template.
 
 Migrations: `20260619024959_coin_economy_foundation`, `20260619031927_book_draft_lifecycle`.
 
@@ -89,9 +118,13 @@ Edited: `schema.prisma` (`Role`/`BookType` enums, `DRAFT` status, `User.role`/`b
 | GET/PATCH | `/settings` | now 👑 admin-only (was any authenticated user) |
 | POST | `/books/draft` | pay + create DRAFT (one per user); 402 on insufficient coins |
 | GET | `/books/draft` | resume current draft, or `null` |
-| PATCH | `/books/:id` | configure a DRAFT (409 if not draft) |
-| POST | `/books/:id/submit` | DRAFT → PENDING + enqueue (400 without child) |
+| PATCH | `/books/:id` | configure a DRAFT (409 if not draft); `pageCount` tier ∈ {12,16,20,24} |
+| POST | `/books/:id/submit` | charge page-tier surcharge + DRAFT → PENDING + enqueue (400 no child, 402 can't afford) |
 | ~~POST~~ | ~~`/books`~~ | removed (replaced by the draft flow) |
+| GET/POST | `/children/:childId/heroes` | list (ensures MAIN) / add companion (`COMPANION` 100) |
+| DELETE | `/heroes/:id` | remove companion (MAIN protected) |
+| POST | `/heroes/:id/generate` | metered avatar (402 when out of free attempts) |
+| POST | `/heroes/:id/topup` | `HERO_TOPUP` 100 → +3 attempts |
 
 Full details in `docs/API.md`.
 
