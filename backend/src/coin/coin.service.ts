@@ -1,10 +1,50 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InsufficientCoinsException } from './insufficient-coins.exception';
+import type { AuthUser } from '../auth/strategies/jwt.strategy';
 
 @Injectable()
 export class CoinService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // The user's coin ledger, newest first (capped to keep the payload bounded).
+  async listTransactions(user: AuthUser) {
+    const dbUser = await this.requireUser(user);
+    return this.prisma.coinTransaction.findMany({
+      where: { userId: dbUser.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  }
+
+  // Stub top-up: credit a coin package's amount from the catalog and log it.
+  // Real money → coins (Stripe) is Phase 7; the key → credit shape stays.
+  async purchasePack(user: AuthUser, key: string) {
+    const item = await this.prisma.priceItem.findUnique({ where: { key } });
+    if (!item || !item.active || item.category !== 'PACK') {
+      throw new BadRequestException(`Not a purchasable coin package: ${key}`);
+    }
+    const dbUser = await this.requireUser(user);
+    const balance = await this.credit(
+      dbUser.id,
+      item.amount,
+      `Покупка пакета · ${item.amount} 🪙`,
+    );
+    return { balance };
+  }
+
+  private async requireUser(user: AuthUser) {
+    const dbUser = await this.prisma.user.findUnique({
+      where: { email: user.email },
+      select: { id: true },
+    });
+    if (!dbUser) throw new NotFoundException('User not found');
+    return dbUser;
+  }
 
   // Credit coins and log the transaction atomically. Returns the new balance.
   credit(userId: string, amount: number, label: string, bookId?: string) {
