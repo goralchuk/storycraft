@@ -17,13 +17,13 @@ export default async function AppLayout({
 
   const res = await apiFetch("/users/me");
   const user = res.ok
-    ? ((await res.json()) as { name: string | null; balance: number })
-    : { name: null, balance: 0 };
+    ? ((await res.json()) as { name: string | null; balance: number; role: string })
+    : { name: null, balance: 0, role: "USER" };
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <Backdrop />
-      <Navbar balance={user.balance} userName={user.name} />
+      <Navbar balance={user.balance} userName={user.name} isAdmin={user.role === "ADMIN"} />
       <div className="relative z-[2]">{children}</div>
     </div>
   );

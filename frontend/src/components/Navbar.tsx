@@ -6,9 +6,11 @@ import { logoutAction } from "@/app/actions/auth";
 export default function Navbar({
   balance,
   userName,
+  isAdmin = false,
 }: {
   balance: number;
   userName: string | null;
+  isAdmin?: boolean;
 }) {
   const initial = (userName?.trim()?.[0] ?? "?").toUpperCase();
 
@@ -36,6 +38,14 @@ export default function Navbar({
         >
           Дети
         </Link>
+        {isAdmin && (
+          <Link
+            href="/admin/pricing"
+            className="rounded-pill px-4 py-2 text-[15px] font-bold text-ink-soft hover:bg-[#f3e8d9] hover:text-ink"
+          >
+            ⚙ Цены
+          </Link>
+        )}
       </nav>
 
       <div className="flex-1" />
