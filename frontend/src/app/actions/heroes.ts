@@ -5,16 +5,24 @@ import { apiFetch } from '@/lib/api';
 
 const heroesPath = (childId: string) => `/children/${childId}/heroes`;
 
+// Hero cards live on both the heroes page and the book wizard's step 2; refresh
+// both so generate/topup/add/remove reflect immediately wherever they're used.
+function refreshHeroes(childId: string) {
+  revalidatePath(heroesPath(childId));
+  revalidatePath('/books/new');
+}
+
 export async function generateHeroAction(formData: FormData) {
   const childId = formData.get('childId') as string;
   const heroId = formData.get('heroId') as string;
+  const description = (formData.get('description') as string)?.trim() || undefined;
 
   const res = await apiFetch(`/heroes/${heroId}/generate`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(description ? { description } : {}),
   });
   if (res.status === 402) redirect(`${heroesPath(childId)}?error=topup`);
-  revalidatePath(heroesPath(childId));
+  refreshHeroes(childId);
 }
 
 export async function addCompanionAction(formData: FormData) {
@@ -27,7 +35,7 @@ export async function addCompanionAction(formData: FormData) {
     body: JSON.stringify({ role, name }),
   });
   if (res.status === 402) redirect('/dashboard?error=coins');
-  revalidatePath(heroesPath(childId));
+  refreshHeroes(childId);
 }
 
 export async function removeHeroAction(formData: FormData) {
@@ -35,7 +43,7 @@ export async function removeHeroAction(formData: FormData) {
   const heroId = formData.get('heroId') as string;
 
   await apiFetch(`/heroes/${heroId}`, { method: 'DELETE' });
-  revalidatePath(heroesPath(childId));
+  refreshHeroes(childId);
 }
 
 export async function topupHeroAction(formData: FormData) {
@@ -44,5 +52,5 @@ export async function topupHeroAction(formData: FormData) {
 
   const res = await apiFetch(`/heroes/${heroId}/topup`, { method: 'POST' });
   if (res.status === 402) redirect('/dashboard?error=coins');
-  revalidatePath(heroesPath(childId));
+  refreshHeroes(childId);
 }
