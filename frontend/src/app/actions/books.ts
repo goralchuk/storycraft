@@ -30,8 +30,9 @@ export async function saveChildAction(formData: FormData) {
   revalidatePath('/books/new');
 }
 
-// Step 2/3 — save the draft config, then submit it for generation.
-export async function submitDraftAction(formData: FormData) {
+// Step 2 — save the draft config (no charge) and advance to the step-3 screen.
+// Generation itself starts on step 3 via generateBookAction.
+export async function saveDraftAction(formData: FormData) {
   const id = formData.get('draftId') as string;
   const childId = formData.get('childId') as string;
   const pageCount = Number(formData.get('pageCount'));
@@ -46,9 +47,15 @@ export async function submitDraftAction(formData: FormData) {
   if (promptText !== null) patch.promptText = promptText;
 
   await apiFetch(`/books/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  redirect(`/books/${id}`);
+}
+
+// Step 3 — start generation: charges the page-tier surcharge and enqueues. Keeps
+// the draft on 402; otherwise the page (re)renders the in-progress state.
+export async function generateBookAction(formData: FormData) {
+  const id = formData.get('bookId') as string;
+
   const res = await apiFetch(`/books/${id}/submit`, { method: 'POST' });
-  // 402 = can't afford the page-tier surcharge; draft is kept.
   if (res.status === 402) redirect('/dashboard?error=coins');
-  const book = (await res.json()) as { id: string };
-  redirect(`/books/${book.id}`);
+  revalidatePath(`/books/${id}`);
 }

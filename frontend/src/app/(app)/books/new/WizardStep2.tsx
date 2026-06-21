@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Avatar from '@/components/Avatar';
-import { saveChildAction, submitDraftAction } from '@/app/actions/books';
+import { saveChildAction, saveDraftAction } from '@/app/actions/books';
 import {
   generateHeroAction,
   topupHeroAction,
@@ -442,7 +442,7 @@ export default function WizardStep2({
       )}
 
       {/* footer */}
-      <form action={submitDraftAction} className="mt-[34px] flex items-center gap-3.5">
+      <form action={saveDraftAction} className="mt-[34px] flex items-center gap-3.5">
         <input type="hidden" name="draftId" value={draft.id} />
         <input type="hidden" name="childId" value={draft.childId ?? ''} />
         {!isTemplate && (
