@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { GoogleUser } from './strategies/google.strategy';
 
-const STUB_USER = { id: 'stub-user-id', email: 'test@storycraft.local', name: 'Test User' };
+const STUB_USER = {
+  id: 'stub-user-id',
+  email: 'test@storycraft.local',
+  name: 'Test User',
+};
 
 @Injectable()
 export class AuthService {

@@ -6,6 +6,23 @@ Named generation stages and a progress percentage reported by the worker and exp
 
 ## Requirements
 
+### Requirement: Generation runs once per submission
+
+The generation worker SHALL claim a book for processing only when it is `PENDING`,
+atomically transitioning it to `PROCESSING`. A book that is not `PENDING` (already
+processing, done, or failed) SHALL NOT be reprocessed. This guarantees the
+page-tier surcharge refund-on-failure happens at most once per submission.
+
+#### Scenario: Pending book is claimed once
+
+- **WHEN** the worker processes a `PENDING` book
+- **THEN** it transitions the book to `PROCESSING` and proceeds with generation
+
+#### Scenario: A non-pending book is not reprocessed
+
+- **WHEN** the worker receives a job for a book that is already `DONE` or `FAILED`
+- **THEN** it does not reprocess the book and does not change the user's coins
+
 ### Requirement: Book carries a generation stage and progress
 
 The system SHALL expose a generation `stage` (`HEROES | STORY | ILLUSTRATIONS | ASSEMBLE`, or none) and a `progress` percentage (0–100) on a book, returned by `GET /books/:id`. A freshly submitted draft SHALL have no stage and `progress` 0.

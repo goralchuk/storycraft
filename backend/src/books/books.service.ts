@@ -70,7 +70,10 @@ export class BooksService {
         template: true,
         child: true,
         topic: true,
-        pages: { include: { illustrations: true }, orderBy: { pageNum: 'asc' } },
+        pages: {
+          include: { illustrations: true },
+          orderBy: { pageNum: 'asc' },
+        },
       },
     });
     if (!book) throw new NotFoundException();
@@ -81,7 +84,10 @@ export class BooksService {
       pdfUrl: await this.storage.toUrl(book.pdfUrl),
       photoUrl: await this.storage.toUrl(book.photoUrl),
       child: book.child
-        ? { ...book.child, photoUrl: await this.storage.toUrl(book.child.photoUrl) }
+        ? {
+            ...book.child,
+            photoUrl: await this.storage.toUrl(book.child.photoUrl),
+          }
         : null,
       pages: await Promise.all(
         book.pages.map(async (page) => ({
@@ -113,7 +119,8 @@ export class BooksService {
     });
     if (existing) return existing;
 
-    const priceKey = dto.bookType === 'TEMPLATE' ? 'BOOK_TEMPLATE' : 'BOOK_UNIQUE';
+    const priceKey =
+      dto.bookType === 'TEMPLATE' ? 'BOOK_TEMPLATE' : 'BOOK_UNIQUE';
 
     // Create first so the debit can reference the book id; roll back the draft
     // if the user cannot afford it (no orphan, no double charge).
@@ -122,20 +129,30 @@ export class BooksService {
         bookType: dto.bookType,
         status: 'DRAFT',
         pageCount: 12, // included tier; surcharge applies to 16/20/24
-        ...(dto.templateId ? { template: { connect: { id: dto.templateId } } } : {}),
+        ...(dto.templateId
+          ? { template: { connect: { id: dto.templateId } } }
+          : {}),
         user: { connect: { id: dbUser.id } },
       },
     });
 
     try {
       const amount = await this.coin.priceOf(priceKey);
-      await this.coin.debit(dbUser.id, amount, `Book (${dto.bookType.toLowerCase()})`, book.id);
+      await this.coin.debit(
+        dbUser.id,
+        amount,
+        `Book (${dto.bookType.toLowerCase()})`,
+        book.id,
+      );
     } catch (err) {
       await this.prisma.book.delete({ where: { id: book.id } });
       throw err;
     }
 
-    return this.prisma.book.findUnique({ where: { id: book.id }, include: DRAFT_INCLUDE });
+    return this.prisma.book.findUnique({
+      where: { id: book.id },
+      include: DRAFT_INCLUDE,
+    });
   }
 
   // Save step-2 settings onto a draft. Never charges.
@@ -143,7 +160,9 @@ export class BooksService {
     const book = await this.requireDraft(user, id);
 
     if (dto.pageCount !== undefined && !PAGE_TIERS.includes(dto.pageCount)) {
-      throw new BadRequestException(`pageCount must be one of ${PAGE_TIERS.join(', ')}`);
+      throw new BadRequestException(
+        `pageCount must be one of ${PAGE_TIERS.join(', ')}`,
+      );
     }
 
     if (dto.childId) {
@@ -160,7 +179,9 @@ export class BooksService {
         ...(dto.topicId !== undefined ? { topicId: dto.topicId } : {}),
         ...(dto.pageCount !== undefined ? { pageCount: dto.pageCount } : {}),
         ...(dto.promptText !== undefined ? { promptText: dto.promptText } : {}),
-        ...(dto.writingStyle !== undefined ? { writingStyle: dto.writingStyle } : {}),
+        ...(dto.writingStyle !== undefined
+          ? { writingStyle: dto.writingStyle }
+          : {}),
         ...(dto.fear !== undefined ? { fear: dto.fear } : {}),
         ...(dto.photoUrl !== undefined ? { photoUrl: dto.photoUrl } : {}),
       },
@@ -179,7 +200,12 @@ export class BooksService {
     const tierKey = PAGE_TIER_KEY[book.pageCount];
     if (tierKey) {
       const amount = await this.coin.priceOf(tierKey);
-      await this.coin.debit(book.userId, amount, `Pages: ${book.pageCount}`, book.id);
+      await this.coin.debit(
+        book.userId,
+        amount,
+        `Pages: ${book.pageCount}`,
+        book.id,
+      );
     }
 
     const updated = await this.prisma.book.update({
@@ -206,7 +232,8 @@ export class BooksService {
       include: { child: true },
     });
     if (!book) throw new NotFoundException();
-    if (book.status !== 'DRAFT') throw new ConflictException('Book is not a draft');
+    if (book.status !== 'DRAFT')
+      throw new ConflictException('Book is not a draft');
     return book;
   }
 }

@@ -1,11 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SettingsService } from '../settings/settings.service';
-import {
-  GeneratedText,
-  StoryContext,
-  TextGenerator,
-} from './contracts';
+import { GeneratedText, StoryContext, TextGenerator } from './contracts';
 import type { Env } from '../config/env.schema';
 
 // Gemini's OpenAI-compatible surface — same wire format as OpenAI/Groq/Together,
@@ -57,7 +53,9 @@ export class GeminiTextGenerator extends TextGenerator {
     };
     const content = body.choices?.[0]?.message?.content;
     if (!content) {
-      throw new ServiceUnavailableException('Text provider returned no content');
+      throw new ServiceUnavailableException(
+        'Text provider returned no content',
+      );
     }
 
     return parseStory(content, ctx);
@@ -65,7 +63,7 @@ export class GeminiTextGenerator extends TextGenerator {
 }
 
 const SYSTEM_PROMPT =
-  'You are an author of gentle, age-appropriate children\'s picture books. ' +
+  "You are an author of gentle, age-appropriate children's picture books. " +
   'You always reply with a single JSON object and nothing else.';
 
 function buildPrompt(ctx: StoryContext): string {
@@ -82,7 +80,7 @@ function buildPrompt(ctx: StoryContext): string {
       : '',
     '',
     'RULES:',
-    '- Never write the child\'s real name in the page text. Use the token {{child}} instead.',
+    "- Never write the child's real name in the page text. Use the token {{child}} instead.",
     '- Use {{friend}} for the main companion character; invent extra tokens like {{wizard}} for other named characters.',
     '- Return JSON: { "title": string, "slots": { token: value }, "pages": [ { "pageNum": number, "text": string, "featuresChild": boolean } ] }.',
     '- "slots" must map every token you used (without braces) to its real value; "child" MUST equal the real name above.',
@@ -99,12 +97,20 @@ function parseStory(content: string, ctx: StoryContext): GeneratedText {
   try {
     raw = JSON.parse(cleaned);
   } catch {
-    throw new ServiceUnavailableException('Text provider returned invalid JSON');
+    throw new ServiceUnavailableException(
+      'Text provider returned invalid JSON',
+    );
   }
 
   const obj = raw as Partial<GeneratedText>;
-  if (!obj.title || !Array.isArray(obj.pages) || typeof obj.slots !== 'object') {
-    throw new ServiceUnavailableException('Text provider returned malformed story');
+  if (
+    !obj.title ||
+    !Array.isArray(obj.pages) ||
+    typeof obj.slots !== 'object'
+  ) {
+    throw new ServiceUnavailableException(
+      'Text provider returned malformed story',
+    );
   }
 
   return {

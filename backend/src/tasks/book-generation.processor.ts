@@ -33,9 +33,16 @@ export class BookGenerationProcessor extends WorkerHost {
   // Fail the book and refund its page-tier surcharge — exactly once per run. The
   // guarded transition only refunds when it actually flips a live book to FAILED,
   // so retries / re-failures of an already-terminal book don't double-refund.
-  private async failAndRefund(book: { id: string; userId: string; pageCount: number }) {
+  private async failAndRefund(book: {
+    id: string;
+    userId: string;
+    pageCount: number;
+  }) {
     const failed = await this.prisma.book.updateMany({
-      where: { id: book.id, status: { in: [BookStatus.PENDING, BookStatus.PROCESSING] } },
+      where: {
+        id: book.id,
+        status: { in: [BookStatus.PENDING, BookStatus.PROCESSING] },
+      },
       data: { status: BookStatus.FAILED },
     });
     if (failed.count !== 1) return;
@@ -43,7 +50,12 @@ export class BookGenerationProcessor extends WorkerHost {
     const tierKey = PAGE_TIER_KEY[book.pageCount];
     if (!tierKey) return;
     const amount = await this.coin.priceOf(tierKey);
-    await this.coin.credit(book.userId, amount, `Refund: pages ${book.pageCount}`, book.id);
+    await this.coin.credit(
+      book.userId,
+      amount,
+      `Refund: pages ${book.pageCount}`,
+      book.id,
+    );
   }
 
   async process(job: Job<BookGenerationJob>) {
@@ -53,17 +65,21 @@ export class BookGenerationProcessor extends WorkerHost {
       include: { child: true, template: true, topic: true },
     });
     if (!book) return;
+
+    // Claim the job: only a PENDING book is processed, atomically. A re-run on an
+    // already processing/terminal book claims nothing and is a no-op — this keeps
+    // the failure refund (below) at most once per submission.
+    const claimed = await this.prisma.book.updateMany({
+      where: { id: bookId, status: BookStatus.PENDING },
+      data: { status: BookStatus.PROCESSING, stage: 'HEROES', progress: 5 },
+    });
+    if (claimed.count === 0) return;
+
     if (!book.child) {
       // A submitted book always has a child; guard defensively against bad data.
       await this.failAndRefund(book);
       return;
     }
-
-    // Stage 1 — preparing characters (heroes are pre-generated; brief marker).
-    await this.prisma.book.update({
-      where: { id: bookId },
-      data: { status: BookStatus.PROCESSING, stage: 'HEROES', progress: 5 },
-    });
 
     try {
       // Stage 2 — writing the story.
@@ -118,7 +134,10 @@ export class BookGenerationProcessor extends WorkerHost {
 
         await this.prisma.book.update({
           where: { id: bookId },
-          data: { stage: 'ILLUSTRATIONS', progress: 30 + Math.round((60 * (i + 1)) / total) },
+          data: {
+            stage: 'ILLUSTRATIONS',
+            progress: 30 + Math.round((60 * (i + 1)) / total),
+          },
         });
 
         // Slots are resolved here for the PDF; pages stay tokenized in the DB.

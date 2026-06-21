@@ -1,4 +1,12 @@
-import { BadRequestException, Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { TemplateCategory } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TemplatesService } from './templates.service';

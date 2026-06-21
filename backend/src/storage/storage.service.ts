@@ -15,7 +15,8 @@ export class StorageService {
     const endpoint = new URL(config.get('MINIO_ENDPOINT', { infer: true }));
     this.client = new Client({
       endPoint: endpoint.hostname,
-      port: Number(endpoint.port) || (endpoint.protocol === 'https:' ? 443 : 80),
+      port:
+        Number(endpoint.port) || (endpoint.protocol === 'https:' ? 443 : 80),
       useSSL: endpoint.protocol === 'https:',
       accessKey: config.get('MINIO_ACCESS_KEY', { infer: true }),
       secretKey: config.get('MINIO_SECRET_KEY', { infer: true }),
@@ -23,7 +24,11 @@ export class StorageService {
     this.bucket = config.get('MINIO_BUCKET', { infer: true });
   }
 
-  async upload(key: string, body: Buffer, contentType: string): Promise<string> {
+  async upload(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<string> {
     await this.ensureBucket();
     await this.client.putObject(this.bucket, key, body, body.length, {
       'Content-Type': contentType,
@@ -32,7 +37,11 @@ export class StorageService {
   }
 
   getSignedUrl(key: string): Promise<string> {
-    return this.client.presignedGetObject(this.bucket, key, SIGNED_URL_TTL_SECONDS);
+    return this.client.presignedGetObject(
+      this.bucket,
+      key,
+      SIGNED_URL_TTL_SECONDS,
+    );
   }
 
   /**

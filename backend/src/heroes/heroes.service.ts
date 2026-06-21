@@ -35,7 +35,10 @@ export class HeroesService {
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
     });
     return Promise.all(
-      heroes.map(async (h) => ({ ...h, imageUrl: await this.storage.toUrl(h.imageKey) })),
+      heroes.map(async (h) => ({
+        ...h,
+        imageUrl: await this.storage.toUrl(h.imageKey),
+      })),
     );
   }
 
@@ -45,8 +48,11 @@ export class HeroesService {
     if (dto.role === HeroRole.MAIN) {
       throw new BadRequestException('Cannot add a second main hero');
     }
-    const count = await this.prisma.hero.count({ where: { childId: child.id } });
-    if (count >= MAX_HEROES) throw new ConflictException('Hero limit reached (max 5)');
+    const count = await this.prisma.hero.count({
+      where: { childId: child.id },
+    });
+    if (count >= MAX_HEROES)
+      throw new ConflictException('Hero limit reached (max 5)');
 
     const hero = await this.prisma.hero.create({
       data: { childId: child.id, role: dto.role, name: dto.name },
@@ -97,11 +103,17 @@ export class HeroesService {
         where: { id },
         data: { imageKey, status: 'DONE', style, description },
       });
-      return { ...updated, imageUrl: await this.storage.toUrl(updated.imageKey) };
+      return {
+        ...updated,
+        imageUrl: await this.storage.toUrl(updated.imageKey),
+      };
     } catch (err) {
       await this.prisma.hero.update({
         where: { id },
-        data: { freeAttempts: { increment: 1 }, status: hero.imageKey ? 'DONE' : 'IDLE' },
+        data: {
+          freeAttempts: { increment: 1 },
+          status: hero.imageKey ? 'DONE' : 'IDLE',
+        },
       });
       throw err;
     }
@@ -110,7 +122,11 @@ export class HeroesService {
   async topup(user: AuthUser, id: string) {
     const hero = await this.ownedHero(user, id);
     const amount = await this.coin.priceOf('HERO_TOPUP');
-    await this.coin.debit(hero.child.userId, amount, `Hero generations top-up: ${hero.name}`);
+    await this.coin.debit(
+      hero.child.userId,
+      amount,
+      `Hero generations top-up: ${hero.name}`,
+    );
     return this.prisma.hero.update({
       where: { id },
       data: { freeAttempts: { increment: 3 } },
@@ -135,14 +151,22 @@ export class HeroesService {
   }
 
   private async ensureMain(childId: string, childName: string) {
-    const main = await this.prisma.hero.findFirst({ where: { childId, role: 'MAIN' } });
+    const main = await this.prisma.hero.findFirst({
+      where: { childId, role: 'MAIN' },
+    });
     if (!main) {
-      await this.prisma.hero.create({ data: { childId, role: 'MAIN', name: childName } });
+      await this.prisma.hero.create({
+        data: { childId, role: 'MAIN', name: childName },
+      });
     }
   }
 }
 
-function buildHeroPrompt(name: string, description?: string, style?: string): string {
+function buildHeroPrompt(
+  name: string,
+  description?: string,
+  style?: string,
+): string {
   return [
     `A friendly character portrait of ${name}${description ? `, ${description}` : ''}.`,
     style ? `${style} style.` : '',

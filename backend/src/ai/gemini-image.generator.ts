@@ -13,7 +13,9 @@ const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1/models';
 type InlineData = { data: string; mimeType?: string; mime_type?: string };
 type GeminiImageResponse = {
   candidates?: {
-    content?: { parts?: { inlineData?: InlineData; inline_data?: InlineData }[] };
+    content?: {
+      parts?: { inlineData?: InlineData; inline_data?: InlineData }[];
+    };
   }[];
 };
 
@@ -34,14 +36,20 @@ export class GeminiImageGenerator extends ImageGenerator {
     }
     const { imageModel } = await this.settings.get();
 
-    const res = await fetch(`${GEMINI_BASE_URL}/${imageModel}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: buildPrompt(ctx) }] }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-      }),
-    });
+    const res = await fetch(
+      `${GEMINI_BASE_URL}/${imageModel}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: buildPrompt(ctx) }] }],
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+        }),
+      },
+    );
 
     if (!res.ok) {
       const detail = await res.text();
@@ -62,7 +70,11 @@ export class GeminiImageGenerator extends ImageGenerator {
     const ext = mime.split('/')[1] ?? 'png';
     const buffer = Buffer.from(inline.data, 'base64');
     // Store the object key; GET /books/:id signs it on read (toUrl).
-    return this.storage.upload(`books/img-${randomUUID()}.${ext}`, buffer, mime);
+    return this.storage.upload(
+      `books/img-${randomUUID()}.${ext}`,
+      buffer,
+      mime,
+    );
   }
 }
 

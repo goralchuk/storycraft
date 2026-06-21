@@ -17,7 +17,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     });
   }
 
-  validate(_accessToken: string, _refreshToken: string, profile: Profile): GoogleUser {
+  validate(
+    _accessToken: string,
+    _refreshToken: string,
+    profile: Profile,
+  ): GoogleUser {
     return {
       googleId: profile.id,
       email: profile.emails?.[0]?.value ?? '',
