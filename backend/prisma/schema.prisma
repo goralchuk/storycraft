@@ -6,19 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum SubscriptionPlan {
-  FREE
-  BASIC
-  PRO
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  CANCELED
-  PAST_DUE
-  TRIALING
-}
-
 enum BookStatus {
   DRAFT
   PENDING
@@ -100,7 +87,6 @@ model User {
 
   children         Child[]
   books            Book[]
-  subscription     Subscription?
   ratingsGiven     Rating[]
   referralsSent    Referral[]        @relation("referrer")
   referralUsed     Referral?         @relation("referee")
@@ -214,20 +200,6 @@ model Illustration {
   createdAt     DateTime @default(now())
 
   bookPage BookPage @relation(fields: [bookPageId], references: [id], onDelete: Cascade)
-}
-
-model Subscription {
-  id                   String             @id @default(cuid())
-  userId               String             @unique
-  plan                 SubscriptionPlan   @default(FREE)
-  status               SubscriptionStatus @default(ACTIVE)
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  currentPeriodEnd     DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Rating {
