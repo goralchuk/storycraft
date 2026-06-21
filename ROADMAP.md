@@ -151,23 +151,52 @@ Decisions: internal coin economy only (wallet "buy" credits coins as a stub — 
 
 ---
 
-## Phase 7 — Real Coin Purchases (Stripe)
+## Phase 7 — Coin Economy: finalize logic & schema (pre-payment)
 
-Replaces the wallet stub-credit with real money → coins. (Subscriptions are dropped in favor of the coin model.)
+Complete all coin business logic and lock the data model so the **entire flow is fully testable without a payment provider**. Also remove dead schema left over from the abandoned subscription model.
 
 | # | Task | Verification |
 |---|------|-------------|
-| 7.1 | Stripe products/prices for coin packages, mapped to `PriceItem` `PACK_*` keys | Prices exist in Stripe dashboard |
-| 7.2 | Checkout session for a coin package | Redirect to Stripe works |
-| 7.3 | Stripe webhook — credit `balance` + log `CoinTransaction` on payment success (idempotent) | Duplicate webhook does not double-credit |
-| 7.4 | Wallet "buy" wired to Stripe checkout (replaces 6.21 stub credit) | Real purchase credits coins end-to-end |
+| 7.1 | **Remove unused schema** — drop the `Subscription` model + `SubscriptionPlan`/`SubscriptionStatus` enums + `User.subscription` relation (subscriptions are dropped in favor of coins); audit the rest and remove anything genuinely unreferenced. Keep `Rating`/`Referral` (reserved for Phase 10 features). Prisma migration | migration applies; `prisma validate` + backend build clean; no dangling references |
+| 7.2 | **Lock the coin data model** — confirm the complete set of coin tables and document them: `User.balance` (current balance), `CoinTransaction` (append-only ledger), `PriceItem` (price catalog). No coin state lives anywhere else | data model documented in `docs/`; all coin state is in these three tables |
+| 7.3 | **Complete coin rules** — every charge/credit flows through `CoinService` and is logged; failed generation refunds the page-tier surcharge; hero free-attempt counters reset on book completion; insufficient funds consistently returns 402 | each rule has a test / manual check |
+| 7.4 | **Pricing is tunable** — seed covers every key (book types, page tiers, hero top-up, companion, packs); amounts editable via seed/admin for testing | changing a `PriceItem` amount changes the charged cost |
+| 7.5 | **Full coin E2E without payments** — create → configure → generate → read, plus stub top-up; verify balance + ledger correctness across the whole flow | balances and `CoinTransaction` entries are correct end-to-end |
 
 ---
 
-## Phase 8 — Optional / Later
+## Phase 8 — Book Generation Hardening
 
-- Ratings system on books
-- Referral program — earn coins for invites
+Debug and stabilize the AI generation pipeline (heroes → story → illustrations → assemble) so books generate reliably — done after the coin fixes and before any payment integration.
+
+| # | Task | Verification |
+|---|------|-------------|
+| 8.1 | **End-to-end generation pass** — run the 4 stages with the configured providers (stub + real) and fix failures | a book reaches `DONE` reliably |
+| 8.2 | **Hero image consistency** — the fixed character reference carries across all pages | same character across illustrations |
+| 8.3 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
+| 8.4 | **Content correctness** — slot resolution (title + pages), cover, and page text ↔ illustration pairing | rendered book + PDF match the story |
+| 8.5 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
+| 8.6 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
+
+---
+
+## Phase 9 — Real Coin Purchases (Stripe)
+
+Replaces the wallet stub-credit with real money → coins.
+
+| # | Task | Verification |
+|---|------|-------------|
+| 9.1 | Stripe products/prices for coin packages, mapped to `PriceItem` `PACK_*` keys | Prices exist in Stripe dashboard |
+| 9.2 | Checkout session for a coin package | Redirect to Stripe works |
+| 9.3 | Stripe webhook — credit `balance` + log `CoinTransaction` on payment success (idempotent) | Duplicate webhook does not double-credit |
+| 9.4 | Wallet "buy" wired to Stripe checkout (replaces 6.21 stub credit) | Real purchase credits coins end-to-end |
+
+---
+
+## Phase 10 — Optional / Later
+
+- Ratings system on books (`Rating` model reserved)
+- Referral program — earn coins for invites (`Referral` model reserved)
 - Earn coins via promos / sponsor gifts
 - Template marketplace — sell curated templates for coins
 - Mobile app (App Store + Play Market)
