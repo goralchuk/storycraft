@@ -7,8 +7,6 @@ import WizardStepper from '@/components/WizardStepper';
 import Avatar from '@/components/Avatar';
 import StatusPoller from './StatusPoller';
 
-type Illustration = { id: string; imageUrl: string | null; featuresChild: boolean };
-type Page = { id: string; pageNum: number; text: string | null; illustrations: Illustration[] };
 type BookStage = 'HEROES' | 'STORY' | 'ILLUSTRATIONS' | 'ASSEMBLE' | null;
 type Book = {
   id: string;
@@ -18,7 +16,6 @@ type Book = {
   progress: number;
   pageCount: number;
   slots: Record<string, string> | null;
-  pages: Page[];
   template: { title: string; icon: string | null; coverColor: string | null } | null;
   topic: { icon: string; label: string } | null;
   child: { name: string } | null;
@@ -191,12 +188,12 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
               </div>
             )}
             <div className="flex flex-wrap justify-center gap-3">
-              <a
-                href="#read"
+              <Link
+                href={`/books/${book.id}/read`}
                 className="rounded-pill bg-primary px-[30px] py-3.5 font-display text-base font-bold text-white shadow-primary transition hover:-translate-y-0.5"
               >
                 📖 Читать книгу
-              </a>
+              </Link>
               <Link
                 href="/dashboard"
                 className="rounded-pill border-2 border-[#efe6da] bg-surface px-6 py-3.5 font-display text-base font-bold text-ink-soft transition hover:border-[#d8cabb]"
@@ -204,19 +201,6 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
                 На главную
               </Link>
             </div>
-          </div>
-
-          {/* reading view — restyled inline pages (full spread reader + PDF arrive in 6.20) */}
-          <div id="read" className="mx-auto mt-12 flex max-w-[720px] flex-col gap-8">
-            {book.pages.map((page) => (
-              <section key={page.id} className="overflow-hidden rounded-[20px] border border-border bg-surface shadow-card">
-                {page.illustrations[0]?.imageUrl && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={page.illustrations[0].imageUrl} alt="" className="block w-full" />
-                )}
-                <p className="px-7 py-6 text-[17px] leading-[1.7]">{resolveSlots(page.text, book.slots)}</p>
-              </section>
-            ))}
           </div>
         </>
       )}
