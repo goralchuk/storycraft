@@ -5,6 +5,7 @@ import { BookGenerationProcessor } from './book-generation.processor';
 import { AiModule } from '../ai/ai.module';
 import { PdfModule } from '../pdf/pdf.module';
 import { StorageModule } from '../storage/storage.module';
+import { CoinModule } from '../coin/coin.module';
 import { BOOK_GENERATION_QUEUE } from './tasks.constants';
 
 @Module({
@@ -13,6 +14,7 @@ import { BOOK_GENERATION_QUEUE } from './tasks.constants';
     AiModule,
     PdfModule,
     StorageModule,
+    CoinModule,
   ],
   providers: [TasksService, BookGenerationProcessor],
   exports: [TasksService],

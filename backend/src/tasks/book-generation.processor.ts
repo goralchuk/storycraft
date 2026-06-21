@@ -6,7 +6,16 @@ import { TextGenerator, ImageGenerator } from '../ai/contracts';
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
 import { StorageService } from '../storage/storage.service';
+import { CoinService } from '../coin/coin.service';
 import { BOOK_GENERATION_QUEUE, BookGenerationJob } from './tasks.constants';
+
+// Mirrors PAGE_TIER_KEY in books.service — the surcharge charged at submit and
+// refunded here on failure. Tier 12 has no surcharge.
+const PAGE_TIER_KEY: Record<number, string> = {
+  16: 'PAGE_16',
+  20: 'PAGE_20',
+  24: 'PAGE_24',
+};
 
 @Processor(BOOK_GENERATION_QUEUE)
 export class BookGenerationProcessor extends WorkerHost {
@@ -16,8 +25,25 @@ export class BookGenerationProcessor extends WorkerHost {
     private readonly imageGen: ImageGenerator,
     private readonly pdf: PdfService,
     private readonly storage: StorageService,
+    private readonly coin: CoinService,
   ) {
     super();
+  }
+
+  // Fail the book and refund its page-tier surcharge — exactly once per run. The
+  // guarded transition only refunds when it actually flips a live book to FAILED,
+  // so retries / re-failures of an already-terminal book don't double-refund.
+  private async failAndRefund(book: { id: string; userId: string; pageCount: number }) {
+    const failed = await this.prisma.book.updateMany({
+      where: { id: book.id, status: { in: [BookStatus.PENDING, BookStatus.PROCESSING] } },
+      data: { status: BookStatus.FAILED },
+    });
+    if (failed.count !== 1) return;
+
+    const tierKey = PAGE_TIER_KEY[book.pageCount];
+    if (!tierKey) return;
+    const amount = await this.coin.priceOf(tierKey);
+    await this.coin.credit(book.userId, amount, `Refund: pages ${book.pageCount}`, book.id);
   }
 
   async process(job: Job<BookGenerationJob>) {
@@ -29,10 +55,7 @@ export class BookGenerationProcessor extends WorkerHost {
     if (!book) return;
     if (!book.child) {
       // A submitted book always has a child; guard defensively against bad data.
-      await this.prisma.book.update({
-        where: { id: bookId },
-        data: { status: BookStatus.FAILED },
-      });
+      await this.failAndRefund(book);
       return;
     }
 
@@ -138,10 +161,7 @@ export class BookGenerationProcessor extends WorkerHost {
         });
       }
     } catch (err) {
-      await this.prisma.book.update({
-        where: { id: bookId },
-        data: { status: BookStatus.FAILED },
-      });
+      await this.failAndRefund(book);
       throw err; // let BullMQ record the failed job (and retry if configured)
     }
   }
