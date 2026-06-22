@@ -55,3 +55,19 @@ export abstract class TextGenerator {
 export abstract class ImageGenerator {
   abstract generateImage(ctx: ImageContext): Promise<string>;
 }
+
+/** Inputs for a vision-language consistency check (base64 data URIs). */
+export type ConsistencyInput = {
+  /** Reference image of the main character. */
+  referenceImage: string;
+  /** The generated page illustration to score. */
+  pageImage: string;
+};
+
+/**
+ * Vision-language consistency/quality check. Returns a score 1–10 of how well the
+ * page illustration matches the character reference.
+ */
+export abstract class ConsistencyChecker {
+  abstract score(input: ConsistencyInput): Promise<number>;
+}

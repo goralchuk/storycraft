@@ -9,7 +9,11 @@ import { HeroesService } from './../src/heroes/heroes.service';
 import { PricingService } from './../src/pricing/pricing.service';
 import { TasksService } from './../src/tasks/tasks.service';
 import { BookGenerationProcessor } from './../src/tasks/book-generation.processor';
-import { TextGenerator, ImageGenerator } from './../src/ai/contracts';
+import {
+  TextGenerator,
+  ImageGenerator,
+  ConsistencyChecker,
+} from './../src/ai/contracts';
 import { PdfService } from './../src/pdf/pdf.service';
 import { StorageService } from './../src/storage/storage.service';
 
@@ -52,6 +56,8 @@ const storageStub = {
   getSignedUrl: jest.fn((key: string) => Promise.resolve(key)),
 };
 const tasksStub = { enqueueBookGeneration: jest.fn() };
+// Always-pass VL checker so QC never makes a real vision call in tests.
+const checkerStub = { score: jest.fn((): Promise<number> => Promise.resolve(10)) };
 
 describe('Coin economy (integration)', () => {
   let app: INestApplication;
@@ -109,6 +115,8 @@ describe('Coin economy (integration)', () => {
       .useValue(pdfStub)
       .overrideProvider(StorageService)
       .useValue(storageStub)
+      .overrideProvider(ConsistencyChecker)
+      .useValue(checkerStub)
       .overrideProvider(TasksService)
       .useValue(tasksStub)
       .compile();

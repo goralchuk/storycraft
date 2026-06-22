@@ -4,7 +4,12 @@ import { Job } from 'bullmq';
 import sharp from 'sharp';
 import { BookStatus, HeroRole, type Hero } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { TextGenerator, ImageGenerator } from '../ai/contracts';
+import {
+  TextGenerator,
+  ImageGenerator,
+  ConsistencyChecker,
+  ImageContext,
+} from '../ai/contracts';
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
 import { StorageService } from '../storage/storage.service';
@@ -19,6 +24,10 @@ const PAGE_TIER_KEY: Record<number, string> = {
   24: 'PAGE_24',
 };
 
+// 8.5 — VL quality control: child-facing pages scoring below this (1–10) against
+// the character reference are regenerated once.
+const QA_PASS = 7;
+
 @Processor(BOOK_GENERATION_QUEUE)
 export class BookGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(BookGenerationProcessor.name);
@@ -30,15 +39,16 @@ export class BookGenerationProcessor extends WorkerHost {
     private readonly pdf: PdfService,
     private readonly storage: StorageService,
     private readonly coin: CoinService,
+    private readonly checker: ConsistencyChecker,
   ) {
     super();
   }
 
-  // Fetch the MAIN hero image and downscale it into a small base64 data URI for use
-  // as an illustration reference. The image provider caps the request body (~6 MB)
-  // and hero images are large, so we shrink to <=1024px JPEG. Any failure → null
-  // (generation falls back to description-only).
-  private async buildReferenceImage(imageKey: string): Promise<string | null> {
+  // Fetch a stored image and downscale it into a small base64 data URI. The image
+  // provider / VL model cap the request body (~6 MB) and our images are large, so we
+  // shrink to <=1024px JPEG. Used for both the character reference and QC scoring.
+  // Any failure → null (callers fall back gracefully).
+  private async toDataUri(imageKey: string): Promise<string | null> {
     try {
       const url = await this.storage.toUrl(imageKey);
       if (!url) return null;
@@ -51,8 +61,30 @@ export class BookGenerationProcessor extends WorkerHost {
         .toBuffer();
       return `data:image/jpeg;base64,${out.toString('base64')}`;
     } catch (err) {
-      this.logger.warn(`Reference image prep failed for ${imageKey}: ${String(err)}`);
+      this.logger.warn(`Data URI prep failed for ${imageKey}: ${String(err)}`);
       return null;
+    }
+  }
+
+  // 8.5 — score a freshly generated child-facing illustration against the character
+  // reference and regenerate it once if it scores below the pass bar. Fail-open:
+  // any error keeps the original image and never fails the book.
+  private async qualityControl(
+    imageKey: string,
+    ctx: ImageContext,
+    referenceImage: string,
+  ): Promise<string> {
+    try {
+      const pageImage = await this.toDataUri(imageKey);
+      if (!pageImage) return imageKey;
+      const score = await this.checker.score({ referenceImage, pageImage });
+      this.logger.log(`QC page score ${score}/10 (pass ${QA_PASS})`);
+      if (score >= QA_PASS) return imageKey;
+      this.logger.log('QC below threshold — regenerating page image once');
+      return await this.imageGen.generateImage(ctx);
+    } catch (err) {
+      this.logger.warn(`QC skipped: ${String(err)}`);
+      return imageKey;
     }
   }
 
@@ -145,7 +177,7 @@ export class BookGenerationProcessor extends WorkerHost {
       });
       const character = buildCharacter(mainHero);
       const referenceImage = mainHero?.imageKey
-        ? await this.buildReferenceImage(mainHero.imageKey)
+        ? await this.toDataUri(mainHero.imageKey)
         : null;
 
       const total = story.pages.length;
@@ -156,13 +188,18 @@ export class BookGenerationProcessor extends WorkerHost {
           page.imageDescription || page.text,
           story.slots,
         );
-        const imageUrl = await this.imageGen.generateImage({
+        const ctx: ImageContext = {
           scene,
           featuresChild: page.featuresChild,
           photoUrl: book.photoUrl,
           character: page.featuresChild ? character : null,
           referenceImage: page.featuresChild ? referenceImage : null,
-        });
+        };
+        let imageUrl = await this.imageGen.generateImage(ctx);
+        // QC child-facing pages against the reference; regenerate once if they drift.
+        if (page.featuresChild && referenceImage) {
+          imageUrl = await this.qualityControl(imageUrl, ctx, referenceImage);
+        }
 
         await this.prisma.bookPage.create({
           data: {

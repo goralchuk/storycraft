@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { SettingsModule } from '../settings/settings.module';
 import { StorageModule } from '../storage/storage.module';
-import { TextGenerator, ImageGenerator } from './contracts';
+import { TextGenerator, ImageGenerator, ConsistencyChecker } from './contracts';
 import { StubTextGenerator, StubImageGenerator } from './stub.generators';
 import { GeminiTextGenerator } from './gemini-text.generator';
 import { GeminiImageGenerator } from './gemini-image.generator';
 import { QwenTextGenerator } from './qwen-text.generator';
 import { QwenImageGenerator } from './qwen-image.generator';
+import { QwenVisionChecker } from './qwen-vision.checker';
 import { DispatchingTextGenerator } from './dispatching-text.generator';
 import { DispatchingImageGenerator } from './dispatching-image.generator';
 
@@ -24,7 +25,8 @@ import { DispatchingImageGenerator } from './dispatching-image.generator';
     QwenImageGenerator,
     { provide: TextGenerator, useClass: DispatchingTextGenerator },
     { provide: ImageGenerator, useClass: DispatchingImageGenerator },
+    { provide: ConsistencyChecker, useClass: QwenVisionChecker },
   ],
-  exports: [TextGenerator, ImageGenerator],
+  exports: [TextGenerator, ImageGenerator, ConsistencyChecker],
 })
 export class AiModule {}
