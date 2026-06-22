@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { apiFetch } from '@/lib/api';
+import Avatar from '@/components/Avatar';
 import {
   generateHeroAction,
   addCompanionAction,
@@ -18,9 +19,32 @@ type Hero = {
   imageUrl: string | null;
 };
 
-const wrap = { padding: '2rem', maxWidth: '640px', margin: '0 auto' } as const;
-const card = { display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem', border: '1px solid #eee', borderRadius: '8px', marginBottom: '0.75rem' } as const;
-const COMPANION_ROLES = ['PET', 'SIBLING', 'FRIEND', 'MAGIC'] as const;
+const ROLE_LABELS: Record<Hero['role'], string> = {
+  MAIN: 'Главный герой',
+  PET: 'Питомец',
+  SIBLING: 'Брат / сестра',
+  FRIEND: 'Друг',
+  MAGIC: 'Волшебный',
+};
+const STATUS_LABELS: Record<Hero['status'], string> = {
+  IDLE: 'ожидает',
+  GENERATING: 'генерируется…',
+  DONE: 'готов',
+};
+const COMPANION_ROLES: Hero['role'][] = ['PET', 'SIBLING', 'FRIEND', 'MAGIC'];
+
+const primaryBtn =
+  'rounded-pill bg-primary px-5 py-2.5 font-display text-sm font-bold text-white shadow-primary transition hover:-translate-y-0.5';
+const ghostBtn =
+  'rounded-pill border-2 border-[#efe6da] bg-surface px-5 py-2.5 font-display text-sm font-bold text-ink-soft transition hover:border-[#d8cabb]';
+
+function pluralAttempts(n: number) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'генерация';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'генерации';
+  return 'генераций';
+}
 
 export default async function HeroesPage({
   params,
@@ -41,66 +65,110 @@ export default async function HeroesPage({
   const atLimit = heroes.length >= 5;
 
   return (
-    <main style={wrap}>
-      <h1>Heroes</h1>
+    <main className="mx-auto max-w-[760px] px-6 pt-10 pb-[90px]">
+      <div className="mb-[26px]">
+        <h1 className="font-display text-[32px] font-extrabold">Герои</h1>
+        <p className="mt-[7px] text-[16px] text-muted">
+          Создайте героев для книг: один главный и до четырёх компаньонов.
+        </p>
+      </div>
+
       {error === 'topup' && (
-        <p style={{ color: '#b00' }}>No free generations left for that hero — buy 3 more below.</p>
+        <div className="mb-5 rounded-[16px] border border-[#f0d3c4] bg-peach px-[18px] py-3.5 text-sm font-semibold text-primary-dark">
+          У этого героя закончились бесплатные генерации — купите ещё 3 ниже.
+        </div>
       )}
 
-      {heroes.map((h) => (
-        <div key={h.id} style={card}>
-          <div style={{ width: 64, height: 64, borderRadius: 8, background: '#f0f0f0', overflow: 'hidden', flexShrink: 0 }}>
-            {h.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={h.imageUrl} alt={h.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : null}
-          </div>
-          <div style={{ flex: 1 }}>
-            <strong>{h.name}</strong> <span style={{ color: '#888' }}>· {h.role.toLowerCase()}</span>
-            <div style={{ fontSize: '0.85rem', color: '#666' }}>
-              {h.freeAttempts} free generation{h.freeAttempts === 1 ? '' : 's'} left · {h.status.toLowerCase()}
+      <div className="flex flex-col gap-3">
+        {heroes.map((h) => (
+          <div
+            key={h.id}
+            className="flex items-center gap-4 rounded-[20px] border border-border bg-surface px-5 py-4 shadow-card"
+          >
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[16px] bg-field">
+              {h.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={h.imageUrl} alt={h.name} className="h-full w-full object-cover" />
+              ) : (
+                <Avatar name={h.name} className="h-full w-full rounded-[16px] text-xl" />
+              )}
+            </div>
+
+            <div className="flex-1">
+              <div className="font-display text-[17px] font-bold">{h.name}</div>
+              <div className="mt-0.5 text-sm font-semibold text-faint">
+                {ROLE_LABELS[h.role]} · {h.freeAttempts}{' '}
+                {pluralAttempts(h.freeAttempts)} · {STATUS_LABELS[h.status]}
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              {h.freeAttempts > 0 ? (
+                <form action={generateHeroAction}>
+                  <input type="hidden" name="childId" value={childId} />
+                  <input type="hidden" name="heroId" value={h.id} />
+                  <button type="submit" className={primaryBtn}>
+                    Сгенерировать
+                  </button>
+                </form>
+              ) : (
+                <form action={topupHeroAction}>
+                  <input type="hidden" name="childId" value={childId} />
+                  <input type="hidden" name="heroId" value={h.id} />
+                  <button type="submit" className={ghostBtn}>
+                    Купить 3 (100 🪙)
+                  </button>
+                </form>
+              )}
+              {h.role !== 'MAIN' && (
+                <form action={removeHeroAction}>
+                  <input type="hidden" name="childId" value={childId} />
+                  <input type="hidden" name="heroId" value={h.id} />
+                  <button
+                    type="submit"
+                    className="rounded-pill px-3 py-2.5 text-sm font-bold text-[#c0492f] transition hover:bg-[#fbe9e3]"
+                  >
+                    Удалить
+                  </button>
+                </form>
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {h.freeAttempts > 0 ? (
-              <form action={generateHeroAction}>
-                <input type="hidden" name="childId" value={childId} />
-                <input type="hidden" name="heroId" value={h.id} />
-                <button type="submit">Generate</button>
-              </form>
-            ) : (
-              <form action={topupHeroAction}>
-                <input type="hidden" name="childId" value={childId} />
-                <input type="hidden" name="heroId" value={h.id} />
-                <button type="submit">Buy 3 (100🪙)</button>
-              </form>
-            )}
-            {h.role !== 'MAIN' && (
-              <form action={removeHeroAction}>
-                <input type="hidden" name="childId" value={childId} />
-                <input type="hidden" name="heroId" value={h.id} />
-                <button type="submit" style={{ color: '#b00' }}>Remove</button>
-              </form>
-            )}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {!atLimit && (
-        <form action={addCompanionAction} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '1.5rem' }}>
+        <form
+          action={addCompanionAction}
+          className="mt-6 flex items-center gap-2.5 rounded-[20px] border border-dashed border-[#e0d4c5] bg-white/40 px-5 py-4"
+        >
           <input type="hidden" name="childId" value={childId} />
-          <input name="name" placeholder="Companion name" required style={{ padding: '0.5rem', flex: 1 }} />
-          <select name="role" style={{ padding: '0.5rem' }}>
+          <input
+            name="name"
+            placeholder="Имя компаньона"
+            required
+            className="flex-1 rounded-[12px] border border-border bg-surface px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary"
+          />
+          <select
+            name="role"
+            className="rounded-[12px] border border-border bg-surface px-3 py-2.5 text-sm font-semibold outline-none focus:border-primary"
+          >
             {COMPANION_ROLES.map((r) => (
-              <option key={r} value={r}>{r.toLowerCase()}</option>
+              <option key={r} value={r}>
+                {ROLE_LABELS[r]}
+              </option>
             ))}
           </select>
-          <button type="submit">Add companion (100🪙)</button>
+          <button type="submit" className={primaryBtn}>
+            Добавить (100 🪙)
+          </button>
         </form>
       )}
 
-      <div style={{ marginTop: '2rem' }}>
-        <Link href="/dashboard">← Back to dashboard</Link>
+      <div className="mt-8">
+        <Link href="/dashboard" className="text-sm font-bold text-faint hover:text-primary-dark">
+          ← На главную
+        </Link>
       </div>
     </main>
   );
