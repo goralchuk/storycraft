@@ -26,6 +26,12 @@ enum BookStage {
   ASSEMBLE
 }
 
+enum PageLayout {
+  IMAGE_ONLY
+  IMAGE_TEXT
+  TEXT_ONLY
+}
+
 enum TaskStatus {
   QUEUED
   RUNNING
@@ -179,11 +185,12 @@ model Book {
 }
 
 model BookPage {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   bookId    String
   pageNum   Int
   text      String?
-  createdAt DateTime @default(now())
+  layout    PageLayout @default(IMAGE_TEXT)
+  createdAt DateTime   @default(now())
 
   book          Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
   illustrations Illustration[]

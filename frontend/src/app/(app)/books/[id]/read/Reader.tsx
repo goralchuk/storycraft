@@ -3,7 +3,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Avatar from '@/components/Avatar';
 
-type Spread = { text: string; imageUrl: string | null };
+type PageLayout = 'IMAGE_ONLY' | 'IMAGE_TEXT' | 'TEXT_ONLY';
+type Spread = { text: string; imageUrl: string | null; layout: PageLayout };
 
 export default function Reader({
   title,
@@ -63,11 +64,21 @@ export default function Reader({
           </div>
         ) : (
           <div className="flex min-h-[460px] flex-col">
-            {spread?.imageUrl && (
+            {spread?.layout !== 'TEXT_ONLY' && spread?.imageUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={spread.imageUrl} alt="" className="max-h-[440px] w-full object-cover" />
+              <img
+                src={spread.imageUrl}
+                alt=""
+                className={`w-full object-cover ${spread.layout === 'IMAGE_ONLY' ? 'min-h-[460px] flex-1' : 'max-h-[440px]'}`}
+              />
             )}
-            <p className="flex-1 px-8 py-7 text-[18px] leading-[1.75] text-ink">{spread?.text}</p>
+            {spread?.layout !== 'IMAGE_ONLY' && (
+              <p
+                className={`px-8 py-7 text-[18px] leading-[1.75] text-ink ${spread?.layout === 'TEXT_ONLY' ? 'flex flex-1 items-center justify-center text-center text-[20px]' : 'flex-1'}`}
+              >
+                {spread?.text}
+              </p>
+            )}
           </div>
         )}
       </div>

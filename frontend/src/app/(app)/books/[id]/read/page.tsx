@@ -4,7 +4,8 @@ import { apiFetch } from '@/lib/api';
 import Reader from './Reader';
 
 type Illustration = { id: string; imageUrl: string | null };
-type Page = { id: string; pageNum: number; text: string | null; illustrations: Illustration[] };
+type PageLayout = 'IMAGE_ONLY' | 'IMAGE_TEXT' | 'TEXT_ONLY';
+type Page = { id: string; pageNum: number; text: string | null; layout: PageLayout; illustrations: Illustration[] };
 type Book = {
   id: string;
   title: string | null;
@@ -41,6 +42,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
   const spreads = book.pages.map((p) => ({
     text: resolveSlots(p.text, book.slots),
     imageUrl: p.illustrations[0]?.imageUrl ?? null,
+    layout: p.layout,
   }));
 
   return (

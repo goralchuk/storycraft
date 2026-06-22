@@ -183,22 +183,27 @@ export class BookGenerationProcessor extends WorkerHost {
       const total = story.pages.length;
       const pdfPages: PdfPage[] = [];
       for (const [i, page] of story.pages.entries()) {
-        // Illustrate from the dedicated scene description (fall back to page text).
-        const scene = resolveSlots(
-          page.imageDescription || page.text,
-          story.slots,
-        );
-        const ctx: ImageContext = {
-          scene,
-          featuresChild: page.featuresChild,
-          photoUrl: book.photoUrl,
-          character: page.featuresChild ? character : null,
-          referenceImage: page.featuresChild ? referenceImage : null,
-        };
-        let imageUrl = await this.imageGen.generateImage(ctx);
-        // QC child-facing pages against the reference; regenerate once if they drift.
-        if (page.featuresChild && referenceImage) {
-          imageUrl = await this.qualityControl(imageUrl, ctx, referenceImage);
+        // TEXT_ONLY pages carry no illustration (and save an image generation).
+        const needsImage = page.layout !== 'TEXT_ONLY';
+        let imageUrl: string | null = null;
+        if (needsImage) {
+          // Illustrate from the dedicated scene description (fall back to page text).
+          const scene = resolveSlots(
+            page.imageDescription || page.text,
+            story.slots,
+          );
+          const ctx: ImageContext = {
+            scene,
+            featuresChild: page.featuresChild,
+            photoUrl: book.photoUrl,
+            character: page.featuresChild ? character : null,
+            referenceImage: page.featuresChild ? referenceImage : null,
+          };
+          imageUrl = await this.imageGen.generateImage(ctx);
+          // QC child-facing pages against the reference; regenerate once if they drift.
+          if (page.featuresChild && referenceImage) {
+            imageUrl = await this.qualityControl(imageUrl, ctx, referenceImage);
+          }
         }
 
         await this.prisma.bookPage.create({
@@ -206,14 +211,20 @@ export class BookGenerationProcessor extends WorkerHost {
             bookId,
             pageNum: page.pageNum,
             text: page.text,
-            illustrations: {
-              create: {
-                imageUrl,
-                featuresChild: page.featuresChild,
-                // Keep the tokenized scene description for debugging / regeneration.
-                prompt: page.imageDescription || null,
-              },
-            },
+            layout: page.layout,
+            // Only image layouts carry an illustration.
+            ...(imageUrl
+              ? {
+                  illustrations: {
+                    create: {
+                      imageUrl,
+                      featuresChild: page.featuresChild,
+                      // Keep the tokenized scene description for debugging / regeneration.
+                      prompt: page.imageDescription || null,
+                    },
+                  },
+                }
+              : {}),
           },
         });
 
@@ -229,7 +240,8 @@ export class BookGenerationProcessor extends WorkerHost {
         // imageUrl is a storage key — sign it so the PDF builder can fetch the bytes.
         pdfPages.push({
           text: resolveSlots(page.text, story.slots),
-          imageUrl: await this.storage.toUrl(imageUrl),
+          imageUrl: imageUrl ? await this.storage.toUrl(imageUrl) : null,
+          layout: page.layout,
         });
       }
 

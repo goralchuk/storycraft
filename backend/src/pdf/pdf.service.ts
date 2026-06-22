@@ -9,6 +9,7 @@ const FONT_PATH = join(__dirname, 'fonts', 'DejaVuSans.ttf');
 export type PdfPage = {
   text: string;
   imageUrl?: string | null;
+  layout?: 'IMAGE_ONLY' | 'IMAGE_TEXT' | 'TEXT_ONLY';
 };
 
 export type PdfInput = {
@@ -37,14 +38,24 @@ export class PdfService {
 
     for (const page of input.pages) {
       doc.addPage();
-      if (page.imageUrl) {
-        const img = await this.fetchImage(page.imageUrl);
-        if (img) {
-          doc.image(img, { fit: [495, 400], align: 'center' });
-          doc.moveDown();
-        }
+      const layout = page.layout ?? 'IMAGE_TEXT';
+      const img =
+        layout !== 'TEXT_ONLY' && page.imageUrl
+          ? await this.fetchImage(page.imageUrl)
+          : null;
+
+      if (layout === 'TEXT_ONLY' || !img) {
+        // Text only (or image missing): render the text alone.
+        doc.fontSize(16).text(page.text);
+      } else if (layout === 'IMAGE_ONLY') {
+        // Full illustration, no text.
+        doc.image(img, { fit: [495, 700], align: 'center', valign: 'center' });
+      } else {
+        // IMAGE_TEXT: ~2/3 image, then text below.
+        doc.image(img, { fit: [495, 470], align: 'center' });
+        doc.moveDown();
+        doc.fontSize(16).text(page.text);
       }
-      doc.fontSize(16).text(page.text);
     }
 
     doc.end();

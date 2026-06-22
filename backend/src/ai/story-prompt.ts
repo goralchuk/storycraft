@@ -1,5 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { GeneratedText, StoryContext } from './contracts';
+import { GeneratedText, PageLayout, StoryContext } from './contracts';
+
+const LAYOUTS: PageLayout[] = ['IMAGE_ONLY', 'IMAGE_TEXT', 'TEXT_ONLY'];
 
 // Shared Russian story prompt + parsing for the OpenAI-compatible text providers
 // (Qwen, Gemini). Keeps the slot-token contract ({{child}}, {{friend}}) and the
@@ -29,10 +31,11 @@ export function buildStoryPrompt(ctx: StoryContext): string {
     '- Весь текст (заголовок и страницы) пиши НА РУССКОМ ЯЗЫКЕ.',
     '- Никогда не пиши настоящее имя ребёнка в тексте страниц. Вместо него используй токен {{child}}.',
     '- Используй {{friend}} для главного персонажа-спутника; для других именованных персонажей придумывай токены, например {{wizard}}.',
-    '- Верни JSON: { "title": string, "slots": { token: value }, "pages": [ { "pageNum": number, "text": string, "imageDescription": string, "featuresChild": boolean } ] }.',
+    '- Верни JSON: { "title": string, "slots": { token: value }, "pages": [ { "pageNum": number, "text": string, "imageDescription": string, "featuresChild": boolean, "layout": string } ] }.',
     '- "slots" должен сопоставлять каждый использованный токен (без скобок) его настоящему значению; "child" ДОЛЖЕН совпадать с настоящим именем выше.',
     `- "pages" должен содержать ровно ${ctx.pageCount} элементов (по одному абзацу), pageNum от 1 до ${ctx.pageCount}, каждый — один короткий абзац из 2-4 предложений.`,
     '- "imageDescription" — детальное описание сцены для иллюстрации НА РУССКОМ: что происходит, где, поза и эмоции персонажей, фон, освещение, настроение. Используй те же токены ({{child}}, {{friend}}) вместо имён.',
+    '- "layout" — раскладка страницы, выбирай для разнообразия: "IMAGE_ONLY" (большая иллюстрация без текста, для эффектных сцен), "IMAGE_TEXT" (иллюстрация + текст, основной вариант), "TEXT_ONLY" (только текст, для спокойных/переходных моментов). Чередуй раскладки по книге.',
     '- Ставь "featuresChild" в true на страницах, где ребёнок изображён.',
   ];
   return lines.filter(Boolean).join('\n');
@@ -66,6 +69,9 @@ export function parseStory(content: string, ctx: StoryContext): GeneratedText {
       text: p.text ?? '',
       imageDescription: p.imageDescription ?? '',
       featuresChild: Boolean(p.featuresChild),
+      layout: LAYOUTS.includes(p.layout as PageLayout)
+        ? (p.layout as PageLayout)
+        : 'IMAGE_TEXT',
     })),
   };
 }

@@ -13,6 +13,9 @@ export type StoryContext = {
   pageCount: number;
 };
 
+/** Per-page layout: full image, image + text, or text only. */
+export type PageLayout = 'IMAGE_ONLY' | 'IMAGE_TEXT' | 'TEXT_ONLY';
+
 export type GeneratedPage = {
   pageNum: number;
   /** Slot-tokenized text, e.g. `"{{child}} took a deep breath."` */
@@ -21,6 +24,8 @@ export type GeneratedPage = {
   imageDescription: string;
   /** True when this page depicts the child (drives photo-based image reuse). */
   featuresChild: boolean;
+  /** Chosen page layout for visual variety. */
+  layout: PageLayout;
 };
 
 export type GeneratedText = {
