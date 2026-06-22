@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { BookStatus } from '@prisma/client';
+import { BookStatus, HeroRole, type Hero } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TextGenerator, ImageGenerator } from '../ai/contracts';
 import { PdfService, PdfPage } from '../pdf/pdf.service';
@@ -112,6 +112,13 @@ export class BookGenerationProcessor extends WorkerHost {
         where: { id: bookId },
         data: { stage: 'ILLUSTRATIONS', progress: 30 },
       });
+      // Main-character reference for consistent illustrations (8.3): the child's
+      // MAIN hero appearance, applied to every page that depicts the child.
+      const mainHero = await this.prisma.hero.findFirst({
+        where: { childId: book.child.id, role: HeroRole.MAIN },
+      });
+      const character = buildCharacter(mainHero);
+
       const total = story.pages.length;
       const pdfPages: PdfPage[] = [];
       for (const [i, page] of story.pages.entries()) {
@@ -124,6 +131,7 @@ export class BookGenerationProcessor extends WorkerHost {
           scene,
           featuresChild: page.featuresChild,
           photoUrl: book.photoUrl,
+          character: page.featuresChild ? character : null,
         });
 
         await this.prisma.bookPage.create({
@@ -198,4 +206,15 @@ export class BookGenerationProcessor extends WorkerHost {
       throw err; // let BullMQ record the failed job (and retry if configured)
     }
   }
+}
+
+// Compose the main-character appearance description from the MAIN hero.
+// Returns null when there is nothing to condition on.
+function buildCharacter(hero: Hero | null): string | null {
+  if (!hero) return null;
+  const parts = [
+    hero.description?.trim(),
+    hero.style?.trim() ? `стиль: ${hero.style.trim()}` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
 }

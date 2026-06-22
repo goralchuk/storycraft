@@ -83,6 +83,11 @@ export class GeminiImageGenerator extends ImageGenerator {
 function buildPrompt(ctx: ImageContext): string {
   return [
     "Children's picture-book illustration. Soft, warm, gentle, age-appropriate.",
+    ctx.character
+      ? `Главный герой (сохраняй одинаковую внешность во всей книге): ${ctx.character}.`
+      : '',
     `Scene: ${ctx.scene}`,
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }

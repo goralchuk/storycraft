@@ -37,6 +37,8 @@ export type ImageContext = {
   featuresChild: boolean;
   /** Child reference photo for child-facing panels. */
   photoUrl?: string | null;
+  /** Main-character appearance description, kept consistent across the book. */
+  character?: string | null;
 };
 
 /**
