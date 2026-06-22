@@ -81,10 +81,8 @@ export class GeminiImageGenerator extends ImageGenerator {
 }
 
 function buildPrompt(ctx: ImageContext): string {
-  // Page text is slot-tokenized ({{child}}); strip braces for a cleaner scene prompt.
-  const scene = ctx.pageText.replace(/\{\{(\w+)\}\}/g, '$1').trim();
   return [
     "Children's picture-book illustration. Soft, warm, gentle, age-appropriate.",
-    `Scene: ${scene}`,
+    `Scene: ${ctx.scene}`,
   ].join('\n');
 }

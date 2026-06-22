@@ -17,6 +17,7 @@ export class StubTextGenerator extends TextGenerator {
     const pages = Array.from({ length: ctx.pageCount }, (_, i) => ({
       pageNum: i + 1,
       text: `Page ${i + 1}: {{child}} and {{friend}} faced the day with courage.`,
+      imageDescription: `Scene ${i + 1}: {{child}} and {{friend}} in a sunny meadow.`,
       featuresChild: i % 2 === 0,
     }));
 

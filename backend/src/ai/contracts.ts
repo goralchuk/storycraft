@@ -17,6 +17,8 @@ export type GeneratedPage = {
   pageNum: number;
   /** Slot-tokenized text, e.g. `"{{child}} took a deep breath."` */
   text: string;
+  /** Slot-tokenized scene description for the illustrator (action, setting, mood). */
+  imageDescription: string;
   /** True when this page depicts the child (drives photo-based image reuse). */
   featuresChild: boolean;
 };
@@ -30,7 +32,8 @@ export type GeneratedText = {
 };
 
 export type ImageContext = {
-  pageText: string;
+  /** Slot-resolved scene description to illustrate. */
+  scene: string;
   featuresChild: boolean;
   /** Child reference photo for child-facing panels. */
   photoUrl?: string | null;

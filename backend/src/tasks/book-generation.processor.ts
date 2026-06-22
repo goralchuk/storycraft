@@ -115,8 +115,13 @@ export class BookGenerationProcessor extends WorkerHost {
       const total = story.pages.length;
       const pdfPages: PdfPage[] = [];
       for (const [i, page] of story.pages.entries()) {
+        // Illustrate from the dedicated scene description (fall back to page text).
+        const scene = resolveSlots(
+          page.imageDescription || page.text,
+          story.slots,
+        );
         const imageUrl = await this.imageGen.generateImage({
-          pageText: page.text,
+          scene,
           featuresChild: page.featuresChild,
           photoUrl: book.photoUrl,
         });
@@ -127,7 +132,12 @@ export class BookGenerationProcessor extends WorkerHost {
             pageNum: page.pageNum,
             text: page.text,
             illustrations: {
-              create: { imageUrl, featuresChild: page.featuresChild },
+              create: {
+                imageUrl,
+                featuresChild: page.featuresChild,
+                // Keep the tokenized scene description for debugging / regeneration.
+                prompt: page.imageDescription || null,
+              },
             },
           },
         });

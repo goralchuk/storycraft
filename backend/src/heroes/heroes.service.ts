@@ -95,7 +95,7 @@ export class HeroesService {
     const description = dto.description ?? hero.description ?? undefined;
     try {
       const imageKey = await this.imageGen.generateImage({
-        pageText: buildHeroPrompt(hero.name, description, style),
+        scene: buildHeroPrompt(hero.name, description, style),
         featuresChild: true,
         photoUrl: null,
       });

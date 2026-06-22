@@ -29,9 +29,10 @@ export function buildStoryPrompt(ctx: StoryContext): string {
     '- Весь текст (заголовок и страницы) пиши НА РУССКОМ ЯЗЫКЕ.',
     '- Никогда не пиши настоящее имя ребёнка в тексте страниц. Вместо него используй токен {{child}}.',
     '- Используй {{friend}} для главного персонажа-спутника; для других именованных персонажей придумывай токены, например {{wizard}}.',
-    '- Верни JSON: { "title": string, "slots": { token: value }, "pages": [ { "pageNum": number, "text": string, "featuresChild": boolean } ] }.',
+    '- Верни JSON: { "title": string, "slots": { token: value }, "pages": [ { "pageNum": number, "text": string, "imageDescription": string, "featuresChild": boolean } ] }.',
     '- "slots" должен сопоставлять каждый использованный токен (без скобок) его настоящему значению; "child" ДОЛЖЕН совпадать с настоящим именем выше.',
     `- "pages" должен содержать ровно ${ctx.pageCount} элементов (по одному абзацу), pageNum от 1 до ${ctx.pageCount}, каждый — один короткий абзац из 2-4 предложений.`,
+    '- "imageDescription" — детальное описание сцены для иллюстрации НА РУССКОМ: что происходит, где, поза и эмоции персонажей, фон, освещение, настроение. Используй те же токены ({{child}}, {{friend}}) вместо имён.',
     '- Ставь "featuresChild" в true на страницах, где ребёнок изображён.',
   ];
   return lines.filter(Boolean).join('\n');
@@ -63,6 +64,7 @@ export function parseStory(content: string, ctx: StoryContext): GeneratedText {
     pages: obj.pages.map((p, i) => ({
       pageNum: p.pageNum ?? i + 1,
       text: p.text ?? '',
+      imageDescription: p.imageDescription ?? '',
       featuresChild: Boolean(p.featuresChild),
     })),
   };
