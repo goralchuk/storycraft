@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, jsonOrNull } from '@/lib/api';
 import Avatar from '@/components/Avatar';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
     apiFetch('/children', { cache: 'no-store' }),
   ]);
   const books = (await booksRes.json()) as Book[];
-  const draft = (draftRes.ok ? await draftRes.json() : null) as { id: string } | null;
+  const draft = await jsonOrNull<{ id: string }>(draftRes);
   const children = (childrenRes.ok ? await childrenRes.json() : []) as { id: string }[];
 
   return (

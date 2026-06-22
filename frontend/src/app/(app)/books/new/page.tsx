@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, jsonOrNull } from '@/lib/api';
 import { getPricing } from '@/lib/pricing';
 import WizardStepper from '@/components/WizardStepper';
 import WizardStep1, { type TemplateOption } from './WizardStep1';
@@ -28,7 +28,7 @@ export default async function NewBookPage() {
     apiFetch('/users/me'),
     getPricing(),
   ]);
-  const draft = (draftRes.ok ? await draftRes.json() : null) as Draft | null;
+  const draft = await jsonOrNull<Draft>(draftRes);
   const me = (meRes.ok ? await meRes.json() : { balance: 0 }) as { balance: number };
   const price = (key: string) => pricing.find((p) => p.key === key)?.amount ?? 0;
 
