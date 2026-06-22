@@ -173,12 +173,14 @@ Stand up real book generation on the Qwen family and stabilize it, so books gene
 |---|------|-------------|
 | 8.1 | **Qwen providers + first live book** — wire `qwen3.7-plus` (text) and `qwen-image-2.0` (images, download OSS URL → MinIO); add `QWEN_API_KEY` to backend env; default `AppSettings` → qwen. Russian prompt + Cyrillic PDF font already in place | a book reaches `DONE` with a real Russian story + real illustrations and opens in the reader + PDF |
 | 8.2 | **Rich page structure** — story model emits a per-page `imageDescription` (+ mood) stored in `Illustration.prompt`; illustrations are built from the scene description, not the raw page text | illustrations match the scene, not just the sentence |
-| 8.3 | **Character consistency & quality (`qwen3-vl-flash`)** — bake a detailed character-reference description (from the MAIN hero) into every image prompt, then VL-check the finished illustrations and regenerate outliers | same recognizable character across illustrations |
-| 8.4 | **Page layout variants** — per-page layout (image-only / ⅔ image + ⅓ text / text-only) chosen by the model, rendered in the reader and the PDF | a book shows varied page layouts on screen and in PDF |
-| 8.5 | **Russify the heroes page** — translate `/children/[id]/heroes` to Russian and bring it to the design system | no English UI strings remain |
-| 8.6 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
-| 8.7 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
-| 8.8 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
+| 8.3 | **Character consistency — description** — bake a detailed character-reference description (from the MAIN hero) into every image prompt where the child/hero appears | the character is described consistently across pages |
+| 8.4 | **Character consistency — reference image** — pass the MAIN hero portrait to the illustrator as an inline (base64) reference, downscaled to fit the ~6 MB request limit | same recognizable character across illustrations |
+| 8.5 | **Illustration quality control (`qwen3-vl-flash`)** — VL-check the finished illustrations for consistency/quality and regenerate outliers | inconsistent pages are detected and re-generated |
+| 8.6 | **Page layout variants** — per-page layout (image-only / ⅔ image + ⅓ text / text-only) chosen by the model, rendered in the reader and the PDF | a book shows varied page layouts on screen and in PDF |
+| 8.7 | **Russify the heroes page** — translate `/children/[id]/heroes` to Russian and bring it to the design system | no English UI strings remain |
+| 8.8 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
+| 8.9 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
+| 8.10 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
 
 ---
 
