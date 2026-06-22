@@ -3,6 +3,7 @@ import { SettingsService } from '../settings/settings.service';
 import { GeneratedText, StoryContext, TextGenerator } from './contracts';
 import { StubTextGenerator } from './stub.generators';
 import { GeminiTextGenerator } from './gemini-text.generator';
+import { QwenTextGenerator } from './qwen-text.generator';
 
 /**
  * Selects the concrete text generator at call time from
@@ -15,6 +16,7 @@ export class DispatchingTextGenerator extends TextGenerator {
     private readonly settings: SettingsService,
     private readonly stub: StubTextGenerator,
     private readonly gemini: GeminiTextGenerator,
+    private readonly qwen: QwenTextGenerator,
   ) {
     super();
   }
@@ -26,6 +28,8 @@ export class DispatchingTextGenerator extends TextGenerator {
 
   private pick(provider: string): TextGenerator {
     switch (provider) {
+      case 'qwen':
+        return this.qwen;
       case 'gemini':
         return this.gemini;
       case 'stub':

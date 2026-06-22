@@ -141,7 +141,11 @@ export class BookGenerationProcessor extends WorkerHost {
         });
 
         // Slots are resolved here for the PDF; pages stay tokenized in the DB.
-        pdfPages.push({ text: resolveSlots(page.text, story.slots), imageUrl });
+        // imageUrl is a storage key — sign it so the PDF builder can fetch the bytes.
+        pdfPages.push({
+          text: resolveSlots(page.text, story.slots),
+          imageUrl: await this.storage.toUrl(imageUrl),
+        });
       }
 
       // Stage 4 — assembling the book.

@@ -16,6 +16,8 @@ export const envSchema = z.object({
   FRONTEND_URL: z.string().url().default('http://localhost:3001'),
   // Optional — only needed when textProvider is "gemini". Stub works without it.
   GEMINI_API_KEY: z.string().optional(),
+  // Optional — only needed when the provider is "qwen" (DashScope). Stub works without it.
+  QWEN_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

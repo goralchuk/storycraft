@@ -5,13 +5,14 @@ import { GeneratedText, StoryContext, TextGenerator } from './contracts';
 import { STORY_SYSTEM_PROMPT, buildStoryPrompt, parseStory } from './story-prompt';
 import type { Env } from '../config/env.schema';
 
-// Gemini's OpenAI-compatible surface — same wire format as OpenAI/Groq/Together,
-// so swapping provider later is just a base URL + key + model change.
-const GEMINI_BASE_URL =
-  'https://generativelanguage.googleapis.com/v1beta/openai';
+// Qwen (Alibaba DashScope) OpenAI-compatible surface — same wire format as
+// OpenAI/Gemini, so this mirrors the Gemini text generator with a different
+// base URL + key + model (from AppSettings.textModel, e.g. qwen3.7-plus).
+const QWEN_BASE_URL =
+  'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 
 @Injectable()
-export class GeminiTextGenerator extends TextGenerator {
+export class QwenTextGenerator extends TextGenerator {
   constructor(
     private readonly config: ConfigService<Env, true>,
     private readonly settings: SettingsService,
@@ -20,13 +21,13 @@ export class GeminiTextGenerator extends TextGenerator {
   }
 
   async generateText(ctx: StoryContext): Promise<GeneratedText> {
-    const apiKey = this.config.get('GEMINI_API_KEY', { infer: true });
+    const apiKey = this.config.get('QWEN_API_KEY', { infer: true });
     if (!apiKey) {
-      throw new ServiceUnavailableException('GEMINI_API_KEY is not configured');
+      throw new ServiceUnavailableException('QWEN_API_KEY is not configured');
     }
     const { textModel } = await this.settings.get();
 
-    const res = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${QWEN_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,9 +55,7 @@ export class GeminiTextGenerator extends TextGenerator {
     };
     const content = body.choices?.[0]?.message?.content;
     if (!content) {
-      throw new ServiceUnavailableException(
-        'Text provider returned no content',
-      );
+      throw new ServiceUnavailableException('Text provider returned no content');
     }
 
     return parseStory(content, ctx);

@@ -252,10 +252,10 @@ model Topic {
 
 model AppSettings {
   id            String   @id @default("singleton")
-  textProvider  String   @default("stub")
-  textModel     String   @default("gpt-4o-mini")
-  imageProvider String   @default("stub")
-  imageModel    String   @default("dall-e-3")
+  textProvider  String   @default("qwen")
+  textModel     String   @default("qwen3.7-plus")
+  imageProvider String   @default("qwen")
+  imageModel    String   @default("qwen-image-2.0")
   updatedAt     DateTime @updatedAt
 }
 

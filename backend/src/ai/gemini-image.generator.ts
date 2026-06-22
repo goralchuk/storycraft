@@ -8,7 +8,9 @@ import type { Env } from '../config/env.schema';
 
 // Gemini's NATIVE image API (generateContent) — not the OpenAI-compatible
 // surface used for text. Image bytes come back base64 in candidates[].parts[].
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1/models';
+// Image output (responseModalities) is only supported on the v1beta surface.
+const GEMINI_BASE_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models';
 
 type InlineData = { data: string; mimeType?: string; mime_type?: string };
 type GeminiImageResponse = {

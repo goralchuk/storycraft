@@ -3,6 +3,7 @@ import { SettingsService } from '../settings/settings.service';
 import { ImageContext, ImageGenerator } from './contracts';
 import { StubImageGenerator } from './stub.generators';
 import { GeminiImageGenerator } from './gemini-image.generator';
+import { QwenImageGenerator } from './qwen-image.generator';
 
 /**
  * Selects the concrete image generator at call time from
@@ -15,6 +16,7 @@ export class DispatchingImageGenerator extends ImageGenerator {
     private readonly settings: SettingsService,
     private readonly stub: StubImageGenerator,
     private readonly gemini: GeminiImageGenerator,
+    private readonly qwen: QwenImageGenerator,
   ) {
     super();
   }
@@ -26,6 +28,8 @@ export class DispatchingImageGenerator extends ImageGenerator {
 
   private pick(provider: string): ImageGenerator {
     switch (provider) {
+      case 'qwen':
+        return this.qwen;
       case 'gemini':
         return this.gemini;
       case 'stub':

@@ -5,12 +5,14 @@ import { TextGenerator, ImageGenerator } from './contracts';
 import { StubTextGenerator, StubImageGenerator } from './stub.generators';
 import { GeminiTextGenerator } from './gemini-text.generator';
 import { GeminiImageGenerator } from './gemini-image.generator';
+import { QwenTextGenerator } from './qwen-text.generator';
+import { QwenImageGenerator } from './qwen-image.generator';
 import { DispatchingTextGenerator } from './dispatching-text.generator';
 import { DispatchingImageGenerator } from './dispatching-image.generator';
 
 // Both text and image generation are dispatched at call time from AppSettings
-// (textProvider / imageProvider): stub ↔ gemini, no redeploy to switch.
-// The Gemini image generator stores its output, so StorageModule is imported.
+// (textProvider / imageProvider): stub ↔ qwen ↔ gemini, no redeploy to switch.
+// The Qwen/Gemini image generators store their output, so StorageModule is imported.
 @Module({
   imports: [SettingsModule, StorageModule],
   providers: [
@@ -18,6 +20,8 @@ import { DispatchingImageGenerator } from './dispatching-image.generator';
     StubImageGenerator,
     GeminiTextGenerator,
     GeminiImageGenerator,
+    QwenTextGenerator,
+    QwenImageGenerator,
     { provide: TextGenerator, useClass: DispatchingTextGenerator },
     { provide: ImageGenerator, useClass: DispatchingImageGenerator },
   ],

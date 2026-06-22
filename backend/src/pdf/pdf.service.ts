@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { join } from 'node:path';
 import PDFDocument from 'pdfkit';
+
+// pdfkit's built-in fonts are Latin-only; embed a Unicode font so Cyrillic
+// (Russian story text) renders. Copied into dist via nest-cli.json assets.
+const FONT_PATH = join(__dirname, 'fonts', 'DejaVuSans.ttf');
 
 export type PdfPage = {
   text: string;
@@ -18,6 +23,8 @@ export class PdfService {
   /** Assembles a cover + one page per spread into a single PDF buffer. */
   async generate(input: PdfInput): Promise<Buffer> {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    doc.registerFont('body', FONT_PATH);
+    doc.font('body');
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     const done = new Promise<Buffer>((resolve, reject) => {
