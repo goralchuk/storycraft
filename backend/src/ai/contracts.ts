@@ -39,6 +39,8 @@ export type ImageContext = {
   photoUrl?: string | null;
   /** Main-character appearance description, kept consistent across the book. */
   character?: string | null;
+  /** Downscaled base64 data URI of the main-character reference image. */
+  referenceImage?: string | null;
 };
 
 /**

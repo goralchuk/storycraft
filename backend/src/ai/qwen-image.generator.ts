@@ -44,7 +44,15 @@ export class QwenImageGenerator extends ImageGenerator {
       body: JSON.stringify({
         model: imageModel,
         input: {
-          messages: [{ role: 'user', content: [{ text: buildPrompt(ctx) }] }],
+          messages: [
+            {
+              role: 'user',
+              // A reference image (when present) conditions the character's look.
+              content: ctx.referenceImage
+                ? [{ image: ctx.referenceImage }, { text: buildPrompt(ctx) }]
+                : [{ text: buildPrompt(ctx) }],
+            },
+          ],
         },
         parameters: { negative_prompt: '' },
       }),

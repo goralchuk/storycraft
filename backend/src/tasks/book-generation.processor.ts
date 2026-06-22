@@ -1,5 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import sharp from 'sharp';
 import { BookStatus, HeroRole, type Hero } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TextGenerator, ImageGenerator } from '../ai/contracts';
@@ -19,6 +21,8 @@ const PAGE_TIER_KEY: Record<number, string> = {
 
 @Processor(BOOK_GENERATION_QUEUE)
 export class BookGenerationProcessor extends WorkerHost {
+  private readonly logger = new Logger(BookGenerationProcessor.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly textGen: TextGenerator,
@@ -28,6 +32,28 @@ export class BookGenerationProcessor extends WorkerHost {
     private readonly coin: CoinService,
   ) {
     super();
+  }
+
+  // Fetch the MAIN hero image and downscale it into a small base64 data URI for use
+  // as an illustration reference. The image provider caps the request body (~6 MB)
+  // and hero images are large, so we shrink to <=1024px JPEG. Any failure → null
+  // (generation falls back to description-only).
+  private async buildReferenceImage(imageKey: string): Promise<string | null> {
+    try {
+      const url = await this.storage.toUrl(imageKey);
+      if (!url) return null;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const input = Buffer.from(await res.arrayBuffer());
+      const out = await sharp(input)
+        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      return `data:image/jpeg;base64,${out.toString('base64')}`;
+    } catch (err) {
+      this.logger.warn(`Reference image prep failed for ${imageKey}: ${String(err)}`);
+      return null;
+    }
   }
 
   // Fail the book and refund its page-tier surcharge — exactly once per run. The
@@ -118,6 +144,9 @@ export class BookGenerationProcessor extends WorkerHost {
         where: { childId: book.child.id, role: HeroRole.MAIN },
       });
       const character = buildCharacter(mainHero);
+      const referenceImage = mainHero?.imageKey
+        ? await this.buildReferenceImage(mainHero.imageKey)
+        : null;
 
       const total = story.pages.length;
       const pdfPages: PdfPage[] = [];
@@ -132,6 +161,7 @@ export class BookGenerationProcessor extends WorkerHost {
           featuresChild: page.featuresChild,
           photoUrl: book.photoUrl,
           character: page.featuresChild ? character : null,
+          referenceImage: page.featuresChild ? referenceImage : null,
         });
 
         await this.prisma.bookPage.create({
