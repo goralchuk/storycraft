@@ -167,17 +167,18 @@ Complete all coin business logic and lock the data model so the **entire flow is
 
 ## Phase 8 — Book Generation Hardening
 
-Debug and stabilize the AI generation pipeline (heroes → story → illustrations → assemble) so books generate reliably — done after the coin fixes and before any payment integration.
+Stand up real book generation on the Qwen family and stabilize it, so books generate reliably in Russian — done after the coin fixes and before any payment integration. Models (DashScope intl, OpenAI-compatible base for text): `qwen3.7-plus` (story text), `qwen-image-2.0` (illustrations, multimodal-generation API → image URL stored in MinIO), `qwen3-vl-flash` (consistency / quality check). Name tokenization (`{{child}}`) is kept.
 
 | # | Task | Verification |
 |---|------|-------------|
-| 8.1 | **Real generation in Russian** — switch providers to Gemini (`gemini-2.5-flash` text / `gemini-2.5-flash-image` images), rewrite prompts so stories are written in Russian, and embed a Cyrillic font so the PDF renders Russian | a book reaches `DONE` with a real Russian story + real illustrations; the PDF is readable |
-| 8.2 | **Russify the heroes page** — translate `/children/[id]/heroes` to Russian and bring it to the design system | no English UI strings remain |
-| 8.3 | **Page layout variants** — per-page layout (image-only / ⅔ image + ⅓ text / text-only) chosen by the model, rendered in the reader and the PDF | a book shows varied page layouts on screen and in PDF |
-| 8.4 | **Hero image consistency** — the fixed character reference carries across all pages | same character across illustrations |
-| 8.5 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
-| 8.6 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
-| 8.7 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
+| 8.1 | **Qwen providers + first live book** — wire `qwen3.7-plus` (text) and `qwen-image-2.0` (images, download OSS URL → MinIO); add `QWEN_API_KEY` to backend env; default `AppSettings` → qwen. Russian prompt + Cyrillic PDF font already in place | a book reaches `DONE` with a real Russian story + real illustrations and opens in the reader + PDF |
+| 8.2 | **Rich page structure** — story model emits a per-page `imageDescription` (+ mood) stored in `Illustration.prompt`; illustrations are built from the scene description, not the raw page text | illustrations match the scene, not just the sentence |
+| 8.3 | **Character consistency & quality (`qwen3-vl-flash`)** — bake a detailed character-reference description (from the MAIN hero) into every image prompt, then VL-check the finished illustrations and regenerate outliers | same recognizable character across illustrations |
+| 8.4 | **Page layout variants** — per-page layout (image-only / ⅔ image + ⅓ text / text-only) chosen by the model, rendered in the reader and the PDF | a book shows varied page layouts on screen and in PDF |
+| 8.5 | **Russify the heroes page** — translate `/children/[id]/heroes` to Russian and bring it to the design system | no English UI strings remain |
+| 8.6 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
+| 8.7 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
+| 8.8 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
 
 ---
 
@@ -203,6 +204,19 @@ Replaces the wallet stub-credit with real money → coins.
 - Mobile app (App Store + Play Market)
 - Add production-scale image providers (OpenAI DALL-E 3, Stability AI) selectable via `AppSettings`
 - `StoryPreset` reuse library — save curated slot-based books, re-personalize by swapping name/photo/character slots (regenerates only `featuresChild` panels)
+
+---
+
+## Future Improvements — Generation
+
+Trimmed from the Phase 8 MVP (per discussion) — richer generation features to revisit once the core pipeline is solid and budget allows.
+
+- **Photo analysis (`qwen3-vl-flash`)** — analyze the child's photo to extract appearance and feed it into hero generation (belongs to the heroes feature, not the book pipeline).
+- **Character psychological profile** — a dedicated profile (speech style, traits, motivation) generated before the story.
+- **Dialogue stage (`qwen-flash-character`)** — per-page natural dialogue generated separately from the narrative (MVP folds light dialogue into the story prompt instead).
+- **Character variant selection** — generate 2-3 character references and let the user pick / regenerate.
+- **Generation caching** — cache character reference and profile per child; cache prompts.
+- **A/B style testing** — experiment with illustration styles and prompt variants.
 
 ---
 
