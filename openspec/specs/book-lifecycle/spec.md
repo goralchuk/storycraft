@@ -3,9 +3,7 @@
 ## Purpose
 
 The book state machine from paid `DRAFT` through `PENDING` generation — draft creation with coin payment, single-active-draft, resume, configure-while-draft, and submit-to-generate. Coins are charged exactly once, at draft creation.
-
 ## Requirements
-
 ### Requirement: Book draft state
 
 The system SHALL support a `DRAFT` book status representing a paid-but-unconfigured book. A book SHALL carry a `bookType` of `UNIQUE` or `TEMPLATE`. While a book is `DRAFT`, its `childId` and `templateId` MAY be unset (child is chosen during configuration; `templateId` applies only to `TEMPLATE` books).
@@ -45,12 +43,17 @@ The system SHALL allow at most one active `DRAFT` per user. When a draft already
 
 ### Requirement: Resume the current draft
 
-The system SHALL expose `GET /books/draft` returning the user's current `DRAFT` book (with its configuration), or an empty result when none exists. The book list (`GET /books`) SHALL exclude `DRAFT` books.
+The system SHALL expose `GET /books/draft` returning the user's current `DRAFT` book (with its configuration), or an empty result when none exists. When there is no draft, the response SHALL be an HTTP 200 with an empty body, and clients SHALL tolerate the empty body (treating it as "no draft") rather than assume a JSON payload. The book list (`GET /books`) SHALL exclude `DRAFT` books.
 
 #### Scenario: Draft persists across requests
 
 - **WHEN** a user creates a draft, then later calls `GET /books/draft`
 - **THEN** the same draft is returned with its saved configuration
+
+#### Scenario: No draft returns an empty body clients tolerate
+
+- **WHEN** a user with no draft calls `GET /books/draft`
+- **THEN** the response is HTTP 200 with an empty body, and the client treats it as "no draft" without erroring
 
 #### Scenario: List excludes drafts
 
@@ -93,3 +96,4 @@ The system SHALL debit the book-type cost only at draft creation. Resume, config
 
 - **WHEN** a user creates a draft, patches it, leaves and resumes, then submits
 - **THEN** the book-type cost appears as exactly one debit transaction for that book
+
