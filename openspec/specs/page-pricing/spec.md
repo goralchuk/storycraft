@@ -3,9 +3,7 @@
 ## Purpose
 
 Book length as a priced page tier (12/16/20/24) with a surcharge charged once at submission, on top of the book-type cost.
-
 ## Requirements
-
 ### Requirement: Book length is a priced page tier
 
 The system SHALL represent a book's length as a page tier of `12`, `16`, `20`, or `24` pages, stored in `Book.pageCount`. Tier `12` is the included default. `PATCH /books/:id` SHALL accept `pageCount` only when it is one of these tiers and SHALL reject any other value.
@@ -45,23 +43,31 @@ When the user cannot afford the page-tier surcharge at submit, the system SHALL 
 
 ### Requirement: Page-tier surcharge is refunded on generation failure
 
-When a submitted book's generation fails, the system SHALL refund the page-tier
+When the user **declines** a `FAILED` book, the system SHALL refund the page-tier
 surcharge that was charged at submit, crediting it back with a `CoinTransaction`
-referencing the book. The refund SHALL occur at most once per failed run — a re-run
-or repeat failure of an already-terminal book SHALL NOT refund again. Tier `12` has
-no surcharge and nothing to refund. The book-type cost SHALL NOT be refunded.
+referencing the book, and move the book to `CANCELLED`. Generation failure by itself
+SHALL NOT refund — a failed book keeps its coins so the user can retry for free. The
+refund SHALL occur at most once, enforced by a guarded `FAILED → CANCELLED`
+transition. Tier `12` has no surcharge and nothing to refund. The book-type cost
+SHALL NOT be refunded.
 
-#### Scenario: Failure refunds the surcharge
+#### Scenario: Decline refunds the surcharge
 
-- **WHEN** generation fails for a book submitted at page tier 20
-- **THEN** the `PAGE_20` amount is credited back with a refund `CoinTransaction` referencing the book, and the book is `FAILED`
+- **WHEN** the user declines a `FAILED` book submitted at page tier 20
+- **THEN** the `PAGE_20` amount is credited back with a refund `CoinTransaction` referencing the book, and the book is `CANCELLED`
+
+#### Scenario: Failure alone does not refund
+
+- **WHEN** a book's generation fails
+- **THEN** the book is `FAILED` and no coins are refunded
 
 #### Scenario: Refund happens at most once
 
-- **WHEN** an already-`FAILED` book's generation is processed again without a new submit
+- **WHEN** a book that is already `CANCELLED` is declined again
 - **THEN** no additional refund is credited
 
 #### Scenario: Included tier has nothing to refund
 
-- **WHEN** generation fails for a book at page tier 12
-- **THEN** no refund is credited and the book is `FAILED`
+- **WHEN** the user declines a `FAILED` book at page tier 12
+- **THEN** the book becomes `CANCELLED` and no refund is credited
+

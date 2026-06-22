@@ -235,40 +235,51 @@ describe('Coin economy (integration)', () => {
     await run(draftId); // leave it DONE
   });
 
-  it('a failed generation refunds the page-tier surcharge exactly once', async () => {
+  it('failure keeps coins; retry re-runs free; decline refunds once', async () => {
     const draftId = await newConfiguredDraft('UNIQUE', 16);
     await books.submit(user(), draftId);
     const afterSubmit = await balance();
 
     imageGen.fail = true;
     await expect(run(draftId)).rejects.toThrow();
+    let book = await prisma.book.findUniqueOrThrow({ where: { id: draftId } });
+    expect(book.status).toBe('FAILED');
+    expect(await balance()).toBe(afterSubmit); // failure does NOT refund
+    expect(await txCount('Refund: pages 16')).toBe(0);
 
-    const failed = await prisma.book.findUniqueOrThrow({
-      where: { id: draftId },
-    });
-    expect(failed.status).toBe('FAILED');
-    expect(await balance()).toBe(afterSubmit + price.PAGE_16); // surcharge returned
+    // Free retry: back to PENDING, re-enqueued (stub), no charge.
+    await books.retry(user(), draftId);
+    book = await prisma.book.findUniqueOrThrow({ where: { id: draftId } });
+    expect(book.status).toBe('PENDING');
+    expect(await balance()).toBe(afterSubmit);
+
+    // It fails again; decline → CANCELLED + refund exactly once.
+    await expect(run(draftId)).rejects.toThrow();
+    await books.cancel(user(), draftId);
+    book = await prisma.book.findUniqueOrThrow({ where: { id: draftId } });
+    expect(book.status).toBe('CANCELLED');
+    expect(await balance()).toBe(afterSubmit + price.PAGE_16);
     expect(await txCount('Refund: pages 16')).toBe(1);
 
-    // Re-running the job on the FAILED book must not refund again (idempotent claim).
-    await run(draftId);
+    // Declining a CANCELLED book does nothing (no double refund).
+    await expect(books.cancel(user(), draftId)).rejects.toThrow();
     expect(await txCount('Refund: pages 16')).toBe(1);
     expect(await balance()).toBe(afterSubmit + price.PAGE_16);
   });
 
-  it('a failed 12-page book refunds nothing', async () => {
+  it('declining a failed 12-page book refunds nothing', async () => {
     const draftId = await newConfiguredDraft('UNIQUE'); // tier 12, no surcharge
     await books.submit(user(), draftId);
     const afterSubmit = await balance();
 
     imageGen.fail = true;
     await expect(run(draftId)).rejects.toThrow();
+    expect(await balance()).toBe(afterSubmit); // no auto-refund
 
-    const failed = await prisma.book.findUniqueOrThrow({
-      where: { id: draftId },
-    });
-    expect(failed.status).toBe('FAILED');
-    expect(await balance()).toBe(afterSubmit); // nothing to refund
+    await books.cancel(user(), draftId);
+    const book = await prisma.book.findUniqueOrThrow({ where: { id: draftId } });
+    expect(book.status).toBe('CANCELLED');
+    expect(await balance()).toBe(afterSubmit); // tier 12 has nothing to refund
     expect(await txCount('Refund: pages 12')).toBe(0);
   });
 });

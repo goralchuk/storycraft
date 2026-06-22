@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { apiFetch } from '@/lib/api';
-import { generateBookAction } from '@/app/actions/books';
+import { generateBookAction, retryBookAction, cancelBookAction } from '@/app/actions/books';
 import WizardStepper from '@/components/WizardStepper';
 import Avatar from '@/components/Avatar';
 import StatusPoller from './StatusPoller';
@@ -11,7 +11,7 @@ type BookStage = 'HEROES' | 'STORY' | 'ILLUSTRATIONS' | 'ASSEMBLE' | null;
 type Book = {
   id: string;
   title: string | null;
-  status: 'DRAFT' | 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
+  status: 'DRAFT' | 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED' | 'CANCELLED';
   stage: BookStage;
   progress: number;
   pageCount: number;
@@ -155,19 +155,51 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* FAILED */}
+      {/* FAILED — free retry, or decline to get the coins back */}
       {book.status === 'FAILED' && (
         <div className="animate-pop mx-auto mt-2.5 max-w-[520px] text-center">
           <div className={coverTile} style={{ background: 'var(--color-peach)' }}>⚠️</div>
           <h2 className="mt-6 mb-1.5 font-display text-[28px] font-extrabold">Не удалось создать книгу</h2>
           <p className="mb-6 text-base leading-relaxed text-muted">
-            Что-то пошло не так во время генерации. Попробуйте создать книгу заново.
+            Что-то пошло не так во время генерации. Попробуйте снова — это бесплатно,
+            книга уже оплачена. Или верните монеты, если передумали.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <form action={retryBookAction}>
+              <input type="hidden" name="bookId" value={book.id} />
+              <button
+                type="submit"
+                className="rounded-pill bg-primary px-[30px] py-3.5 font-display text-base font-bold text-white shadow-primary transition hover:-translate-y-0.5"
+              >
+                🔄 Попробовать снова
+              </button>
+            </form>
+            <form action={cancelBookAction}>
+              <input type="hidden" name="bookId" value={book.id} />
+              <button
+                type="submit"
+                className="rounded-pill border-2 border-[#efe6da] bg-surface px-6 py-3.5 font-display text-base font-bold text-ink-soft transition hover:border-[#d8cabb]"
+              >
+                Вернуть монеты
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CANCELLED — declined; coins refunded */}
+      {book.status === 'CANCELLED' && (
+        <div className="animate-pop mx-auto mt-2.5 max-w-[520px] text-center">
+          <div className={coverTile} style={{ background: 'var(--color-peach)' }}>↩️</div>
+          <h2 className="mt-6 mb-1.5 font-display text-[28px] font-extrabold">Генерация отменена</h2>
+          <p className="mb-6 text-base leading-relaxed text-muted">
+            Доплата за объём возвращена на ваш баланс. Вы можете создать новую книгу.
           </p>
           <Link
             href="/books/new"
             className="rounded-pill bg-primary px-[30px] py-3.5 font-display text-base font-bold text-white shadow-primary transition hover:-translate-y-0.5"
           >
-            Создать заново
+            Создать новую книгу
           </Link>
         </div>
       )}

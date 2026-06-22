@@ -56,4 +56,16 @@ export class BooksController {
   submit(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.books.submit(user, id);
   }
+
+  @Post(':id/retry')
+  @HttpCode(200)
+  retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.books.retry(user, id);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.books.cancel(user, id);
+  }
 }

@@ -12,6 +12,7 @@ enum BookStatus {
   PROCESSING
   DONE
   FAILED
+  CANCELLED
 }
 
 enum BookType {

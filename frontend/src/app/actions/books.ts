@@ -59,3 +59,17 @@ export async function generateBookAction(formData: FormData) {
   if (res.status === 402) redirect('/dashboard?error=coins');
   revalidatePath(`/books/${id}`);
 }
+
+// Step 3 (failed) — retry generation for free: re-runs without charging.
+export async function retryBookAction(formData: FormData) {
+  const id = formData.get('bookId') as string;
+  await apiFetch(`/books/${id}/retry`, { method: 'POST' });
+  revalidatePath(`/books/${id}`);
+}
+
+// Step 3 (failed) — decline: refund the page-tier surcharge and cancel the book.
+export async function cancelBookAction(formData: FormData) {
+  const id = formData.get('bookId') as string;
+  await apiFetch(`/books/${id}/cancel`, { method: 'POST' });
+  redirect('/dashboard');
+}

@@ -1,5 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import { Job } from 'bullmq';
 import sharp from 'sharp';
 import { BookStatus, HeroRole, type Hero } from '@prisma/client';
@@ -13,23 +13,15 @@ import {
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
 import { StorageService } from '../storage/storage.service';
-import { CoinService } from '../coin/coin.service';
+import { TasksService } from './tasks.service';
 import { BOOK_GENERATION_QUEUE, BookGenerationJob } from './tasks.constants';
-
-// Mirrors PAGE_TIER_KEY in books.service — the surcharge charged at submit and
-// refunded here on failure. Tier 12 has no surcharge.
-const PAGE_TIER_KEY: Record<number, string> = {
-  16: 'PAGE_16',
-  20: 'PAGE_20',
-  24: 'PAGE_24',
-};
 
 // 8.5 — VL quality control: child-facing pages scoring below this (1–10) against
 // the character reference are regenerated once.
 const QA_PASS = 7;
 
 @Processor(BOOK_GENERATION_QUEUE)
-export class BookGenerationProcessor extends WorkerHost {
+export class BookGenerationProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(BookGenerationProcessor.name);
 
   constructor(
@@ -38,10 +30,27 @@ export class BookGenerationProcessor extends WorkerHost {
     private readonly imageGen: ImageGenerator,
     private readonly pdf: PdfService,
     private readonly storage: StorageService,
-    private readonly coin: CoinService,
     private readonly checker: ConsistencyChecker,
+    private readonly tasks: TasksService,
   ) {
     super();
+  }
+
+  // Recover books orphaned in PROCESSING by a crash/restart: reset to PENDING and
+  // re-enqueue so generation resumes (no book stays stuck). On a single instance,
+  // any PROCESSING at startup has no live worker, so this is safe.
+  async onModuleInit() {
+    const orphaned = await this.prisma.book.findMany({
+      where: { status: BookStatus.PROCESSING },
+      select: { id: true },
+    });
+    if (orphaned.length === 0) return;
+    await this.prisma.book.updateMany({
+      where: { status: BookStatus.PROCESSING },
+      data: { status: BookStatus.PENDING, stage: null, progress: 0 },
+    });
+    for (const b of orphaned) await this.tasks.enqueueBookGeneration(b.id);
+    this.logger.log(`Requeued ${orphaned.length} orphaned PROCESSING book(s)`);
   }
 
   // Fetch a stored image and downscale it into a small base64 data URI. The image
@@ -88,32 +97,16 @@ export class BookGenerationProcessor extends WorkerHost {
     }
   }
 
-  // Fail the book and refund its page-tier surcharge — exactly once per run. The
-  // guarded transition only refunds when it actually flips a live book to FAILED,
-  // so retries / re-failures of an already-terminal book don't double-refund.
-  private async failAndRefund(book: {
-    id: string;
-    userId: string;
-    pageCount: number;
-  }) {
-    const failed = await this.prisma.book.updateMany({
+  // Mark a live book FAILED, keeping its last stage. No coin refund — the user can
+  // retry for free or decline (refund) via the books endpoints.
+  private async markFailed(bookId: string) {
+    await this.prisma.book.updateMany({
       where: {
-        id: book.id,
+        id: bookId,
         status: { in: [BookStatus.PENDING, BookStatus.PROCESSING] },
       },
       data: { status: BookStatus.FAILED },
     });
-    if (failed.count !== 1) return;
-
-    const tierKey = PAGE_TIER_KEY[book.pageCount];
-    if (!tierKey) return;
-    const amount = await this.coin.priceOf(tierKey);
-    await this.coin.credit(
-      book.userId,
-      amount,
-      `Refund: pages ${book.pageCount}`,
-      book.id,
-    );
   }
 
   async process(job: Job<BookGenerationJob>) {
@@ -125,8 +118,8 @@ export class BookGenerationProcessor extends WorkerHost {
     if (!book) return;
 
     // Claim the job: only a PENDING book is processed, atomically. A re-run on an
-    // already processing/terminal book claims nothing and is a no-op — this keeps
-    // the failure refund (below) at most once per submission.
+    // already processing/terminal book claims nothing and is a no-op. A FAILED book
+    // is re-run only via an explicit retry, which first resets it to PENDING.
     const claimed = await this.prisma.book.updateMany({
       where: { id: bookId, status: BookStatus.PENDING },
       data: { status: BookStatus.PROCESSING, stage: 'HEROES', progress: 5 },
@@ -135,7 +128,7 @@ export class BookGenerationProcessor extends WorkerHost {
 
     if (!book.child) {
       // A submitted book always has a child; guard defensively against bad data.
-      await this.failAndRefund(book);
+      await this.markFailed(bookId);
       return;
     }
 
@@ -281,8 +274,8 @@ export class BookGenerationProcessor extends WorkerHost {
         });
       }
     } catch (err) {
-      await this.failAndRefund(book);
-      throw err; // let BullMQ record the failed job (and retry if configured)
+      await this.markFailed(bookId);
+      throw err; // let BullMQ record the failed job
     }
   }
 }

@@ -49,7 +49,7 @@ export class BooksService {
   // Drafts are surfaced only via getDraft / the dashboard banner.
   list(user: AuthUser) {
     return this.prisma.book.findMany({
-      where: { user: { email: user.email }, status: { not: 'DRAFT' } },
+      where: { user: { email: user.email }, status: { notIn: ['DRAFT', 'CANCELLED'] } },
       include: DRAFT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
@@ -224,6 +224,51 @@ export class BooksService {
 
     await this.tasks.enqueueBookGeneration(book.id);
     return updated;
+  }
+
+  // Free retry of a failed book: reset to PENDING and re-enqueue (no charge —
+  // the user already paid). Guarded so only a FAILED book is affected.
+  async retry(user: AuthUser, id: string) {
+    const dbUser = await this.prisma.user.findUniqueOrThrow({
+      where: { email: user.email },
+      select: { id: true },
+    });
+    const result = await this.prisma.book.updateMany({
+      where: { id, userId: dbUser.id, status: 'FAILED' },
+      data: { status: 'PENDING', stage: null, progress: 0 },
+    });
+    if (result.count === 0) {
+      throw new BadRequestException('Only a failed book can be retried');
+    }
+    await this.tasks.enqueueBookGeneration(id);
+    return this.getOne(user, id);
+  }
+
+  // Decline a failed book: move to CANCELLED and refund the page-tier surcharge
+  // once (the guarded FAILED→CANCELLED transition guarantees a single refund).
+  async cancel(user: AuthUser, id: string) {
+    const book = await this.prisma.book.findFirst({
+      where: { id, user: { email: user.email } },
+    });
+    if (!book) throw new NotFoundException();
+    const result = await this.prisma.book.updateMany({
+      where: { id, userId: book.userId, status: 'FAILED' },
+      data: { status: 'CANCELLED' },
+    });
+    if (result.count === 0) {
+      throw new BadRequestException('Only a failed book can be declined');
+    }
+    const tierKey = PAGE_TIER_KEY[book.pageCount];
+    if (tierKey) {
+      const amount = await this.coin.priceOf(tierKey);
+      await this.coin.credit(
+        book.userId,
+        amount,
+        `Refund: pages ${book.pageCount}`,
+        book.id,
+      );
+    }
+    return this.getOne(user, id);
   }
 
   private async requireDraft(user: AuthUser, id: string) {

@@ -3,15 +3,13 @@
 ## Purpose
 
 Named generation stages and a progress percentage reported by the worker and exposed on the book for the viewer to poll.
-
 ## Requirements
-
 ### Requirement: Generation runs once per submission
 
 The generation worker SHALL claim a book for processing only when it is `PENDING`,
 atomically transitioning it to `PROCESSING`. A book that is not `PENDING` (already
-processing, done, or failed) SHALL NOT be reprocessed. This guarantees the
-page-tier surcharge refund-on-failure happens at most once per submission.
+processing, done, failed, or cancelled) SHALL NOT be reprocessed. A failed book is
+re-run only by an explicit retry, which first resets it to `PENDING`.
 
 #### Scenario: Pending book is claimed once
 
@@ -59,3 +57,4 @@ When generation fails, the system SHALL set the book status to `FAILED` and SHAL
 
 - **WHEN** generation fails during illustrations
 - **THEN** the book status is `FAILED` and its stage remains `ILLUSTRATIONS`
+
