@@ -171,12 +171,13 @@ Debug and stabilize the AI generation pipeline (heroes → story → illustratio
 
 | # | Task | Verification |
 |---|------|-------------|
-| 8.1 | **End-to-end generation pass** — run the 4 stages with the configured providers (stub + real) and fix failures | a book reaches `DONE` reliably |
-| 8.2 | **Hero image consistency** — the fixed character reference carries across all pages | same character across illustrations |
-| 8.3 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
-| 8.4 | **Content correctness** — slot resolution (title + pages), cover, and page text ↔ illustration pairing | rendered book + PDF match the story |
-| 8.5 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
-| 8.6 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
+| 8.1 | **Real generation in Russian** — switch providers to Gemini (`gemini-2.5-flash` text / `gemini-2.5-flash-image` images), rewrite prompts so stories are written in Russian, and embed a Cyrillic font so the PDF renders Russian | a book reaches `DONE` with a real Russian story + real illustrations; the PDF is readable |
+| 8.2 | **Russify the heroes page** — translate `/children/[id]/heroes` to Russian and bring it to the design system | no English UI strings remain |
+| 8.3 | **Page layout variants** — per-page layout (image-only / ⅔ image + ⅓ text / text-only) chosen by the model, rendered in the reader and the PDF | a book shows varied page layouts on screen and in PDF |
+| 8.4 | **Hero image consistency** — the fixed character reference carries across all pages | same character across illustrations |
+| 8.5 | **Error handling & recovery** — a stage failure sets `FAILED` with the last stage; safe retry / re-run; partial-failure handling; no stuck `PROCESSING` | failures are recoverable |
+| 8.6 | **Progress accuracy** — `stage`/`progress` reflect real work and are non-decreasing | poller shows truthful progress |
+| 8.7 | **Observability** — per-stage and per-AI-call logging/metrics to aid debugging | failures are diagnosable from logs |
 
 ---
 
