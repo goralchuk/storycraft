@@ -133,6 +133,21 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
     }
 
     try {
+      // Stage 1 — heroes: load the main-character reference used to keep the child
+      // recognizable across illustrations. This is the only hero-related work at
+      // generation time, so it belongs to (and makes truthful) the HEROES stage.
+      const mainHero = await this.prisma.hero.findFirst({
+        where: { childId: book.child.id, role: HeroRole.MAIN },
+      });
+      const character = buildCharacter(mainHero);
+      const referenceImage = mainHero?.imageKey
+        ? await this.toDataUri(mainHero.imageKey)
+        : null;
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { stage: 'HEROES', progress: 10 },
+      });
+
       // Stage 2 — writing the story.
       await this.prisma.book.update({
         where: { id: bookId },
@@ -157,25 +172,20 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       // Re-generate cleanly so re-runs are idempotent (cascades delete pages + illustrations).
       await this.prisma.bookPage.deleteMany({ where: { bookId } });
 
-      // Stage 3 — drawing illustrations (widest band; per-image progress 30→90%).
-      // Enter the stage before the first image so a failure here is attributed to it.
+      // Stage 3 — drawing illustrations (widest band; progress 30→90%). Enter the
+      // stage before the first image so a failure here is attributed to it. The
+      // band is weighted by image-generating pages: TEXT_ONLY pages cost no image
+      // work and don't move the bar, so progress tracks the expensive part.
       await this.prisma.book.update({
         where: { id: bookId },
         data: { stage: 'ILLUSTRATIONS', progress: 30 },
       });
-      // Main-character reference for consistent illustrations (8.3): the child's
-      // MAIN hero appearance, applied to every page that depicts the child.
-      const mainHero = await this.prisma.hero.findFirst({
-        where: { childId: book.child.id, role: HeroRole.MAIN },
-      });
-      const character = buildCharacter(mainHero);
-      const referenceImage = mainHero?.imageKey
-        ? await this.toDataUri(mainHero.imageKey)
-        : null;
-
-      const total = story.pages.length;
+      const imageTotal = story.pages.filter(
+        (p) => p.layout !== 'TEXT_ONLY',
+      ).length;
+      let imageDone = 0;
       const pdfPages: PdfPage[] = [];
-      for (const [i, page] of story.pages.entries()) {
+      for (const page of story.pages) {
         // TEXT_ONLY pages carry no illustration (and save an image generation).
         const needsImage = page.layout !== 'TEXT_ONLY';
         let imageUrl: string | null = null;
@@ -221,11 +231,13 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
           },
         });
 
+        if (needsImage) imageDone += 1;
+        const frac = imageTotal === 0 ? 1 : imageDone / imageTotal;
         await this.prisma.book.update({
           where: { id: bookId },
           data: {
             stage: 'ILLUSTRATIONS',
-            progress: 30 + Math.round((60 * (i + 1)) / total),
+            progress: 30 + Math.round(60 * frac),
           },
         });
 

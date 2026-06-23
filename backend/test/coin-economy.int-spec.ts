@@ -34,6 +34,8 @@ const imageGen = {
         : Promise.resolve('test://img'),
   ),
 };
+// Cycle the three layouts so a run mixes image and TEXT_ONLY pages (8.6).
+const LAYOUTS = ['IMAGE_TEXT', 'TEXT_ONLY', 'IMAGE_ONLY'] as const;
 const textGen = {
   generateText: jest.fn((ctx: { childName: string; pageCount: number }) =>
     Promise.resolve({
@@ -43,6 +45,7 @@ const textGen = {
         pageNum: i + 1,
         text: `Page ${i + 1}: {{child}} and {{friend}}.`,
         featuresChild: i % 2 === 0,
+        layout: LAYOUTS[i % LAYOUTS.length],
       })),
     }),
   ),
@@ -265,6 +268,58 @@ describe('Coin economy (integration)', () => {
     await expect(books.cancel(user(), draftId)).rejects.toThrow();
     expect(await txCount('Refund: pages 16')).toBe(1);
     expect(await balance()).toBe(afterSubmit + price.PAGE_16);
+  });
+
+  it('progress is non-decreasing through the stages and reaches 100', async () => {
+    const draftId = await newConfiguredDraft('UNIQUE', 16);
+    await books.submit(user(), draftId);
+    imageGen.fail = false;
+
+    // Record every stage/progress the worker writes, in order (claim uses
+    // updateMany; per-stage writes use update).
+    const seen: number[] = [];
+    const stages: string[] = [];
+    const record = (data: { progress?: number; stage?: string | null }) => {
+      if (typeof data?.progress === 'number') seen.push(data.progress);
+      if (typeof data?.stage === 'string') stages.push(data.stage);
+    };
+    const origUpdate = prisma.book.update.bind(prisma.book);
+    const origUpdateMany = prisma.book.updateMany.bind(prisma.book);
+    const u = jest
+      .spyOn(prisma.book, 'update')
+      .mockImplementation(((args: { data: object }) => {
+        record(args.data);
+        return origUpdate(args as Parameters<typeof origUpdate>[0]);
+      }) as typeof prisma.book.update);
+    const um = jest
+      .spyOn(prisma.book, 'updateMany')
+      .mockImplementation(((args: { data: object }) => {
+        record(args.data);
+        return origUpdateMany(args as Parameters<typeof origUpdateMany>[0]);
+      }) as typeof prisma.book.updateMany);
+    try {
+      await run(draftId);
+    } finally {
+      u.mockRestore();
+      um.mockRestore();
+    }
+
+    const done = await prisma.book.findUniqueOrThrow({ where: { id: draftId } });
+    expect(done.status).toBe('DONE');
+
+    // Non-decreasing throughout, ending at 100.
+    for (let i = 1; i < seen.length; i++) {
+      expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1]);
+    }
+    expect(seen[seen.length - 1]).toBe(100);
+
+    // The four named stages appear, in order.
+    const order = ['HEROES', 'STORY', 'ILLUSTRATIONS', 'ASSEMBLE'];
+    const firstIdx = order.map((s) => stages.indexOf(s));
+    expect(firstIdx.every((x) => x >= 0)).toBe(true);
+    for (let i = 1; i < firstIdx.length; i++) {
+      expect(firstIdx[i]).toBeGreaterThan(firstIdx[i - 1]);
+    }
   });
 
   it('declining a failed 12-page book refunds nothing', async () => {
