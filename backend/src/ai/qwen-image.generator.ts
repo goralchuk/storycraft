@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { SettingsService } from '../settings/settings.service';
 import { StorageService } from '../storage/storage.service';
 import { ImageContext, ImageGenerator } from './contracts';
+import { loggedCall } from './logged-call';
 import type { Env } from '../config/env.schema';
 
 // Qwen image generation (qwen-image-2.0) runs on DashScope's multimodal-generation
@@ -35,56 +36,64 @@ export class QwenImageGenerator extends ImageGenerator {
     }
     const { imageModel } = await this.settings.get();
 
-    const res = await fetch(QWEN_IMAGE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: imageModel,
-        input: {
-          messages: [
-            {
-              role: 'user',
-              // A reference image (when present) conditions the character's look.
-              content: ctx.referenceImage
-                ? [{ image: ctx.referenceImage }, { text: buildPrompt(ctx) }]
-                : [{ text: buildPrompt(ctx) }],
-            },
-          ],
+    return loggedCall('image', imageModel, async () => {
+      const res = await fetch(QWEN_IMAGE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
         },
-        parameters: { negative_prompt: '' },
-      }),
+        body: JSON.stringify({
+          model: imageModel,
+          input: {
+            messages: [
+              {
+                role: 'user',
+                // A reference image (when present) conditions the character's look.
+                content: ctx.referenceImage
+                  ? [{ image: ctx.referenceImage }, { text: buildPrompt(ctx) }]
+                  : [{ text: buildPrompt(ctx) }],
+              },
+            ],
+          },
+          parameters: { negative_prompt: '' },
+        }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new ServiceUnavailableException(
+          `Image provider error (${res.status}): ${detail.slice(0, 300)}`,
+        );
+      }
+
+      const body = (await res.json()) as QwenImageResponse;
+      const imageUrl = body.output?.choices?.[0]?.message?.content?.find(
+        (p) => p.image,
+      )?.image;
+      if (!imageUrl) {
+        throw new ServiceUnavailableException(
+          'Image provider returned no image',
+        );
+      }
+
+      // Pull the generated image off the temporary OSS URL into our own storage.
+      const imgRes = await fetch(imageUrl);
+      if (!imgRes.ok) {
+        throw new ServiceUnavailableException(
+          `Failed to fetch generated image (${imgRes.status})`,
+        );
+      }
+      const mime = imgRes.headers.get('content-type') ?? 'image/png';
+      const ext = mime.split('/')[1]?.split(';')[0] ?? 'png';
+      const buffer = Buffer.from(await imgRes.arrayBuffer());
+      // Store the object key; GET /books/:id signs it on read (toUrl).
+      return this.storage.upload(
+        `books/img-${randomUUID()}.${ext}`,
+        buffer,
+        mime,
+      );
     });
-
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new ServiceUnavailableException(
-        `Image provider error (${res.status}): ${detail.slice(0, 300)}`,
-      );
-    }
-
-    const body = (await res.json()) as QwenImageResponse;
-    const imageUrl = body.output?.choices?.[0]?.message?.content?.find(
-      (p) => p.image,
-    )?.image;
-    if (!imageUrl) {
-      throw new ServiceUnavailableException('Image provider returned no image');
-    }
-
-    // Pull the generated image off the temporary OSS URL into our own storage.
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) {
-      throw new ServiceUnavailableException(
-        `Failed to fetch generated image (${imgRes.status})`,
-      );
-    }
-    const mime = imgRes.headers.get('content-type') ?? 'image/png';
-    const ext = mime.split('/')[1]?.split(';')[0] ?? 'png';
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
-    // Store the object key; GET /books/:id signs it on read (toUrl).
-    return this.storage.upload(`books/img-${randomUUID()}.${ext}`, buffer, mime);
   }
 }
 

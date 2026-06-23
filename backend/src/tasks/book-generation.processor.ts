@@ -132,6 +132,13 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       return;
     }
 
+    // Observability (8.10): one log line per stage, plus a run summary / failure
+    // line. `stage` mirrors the persisted stage so a failure names where it broke.
+    const startedAt = Date.now();
+    let stage = 'HEROES';
+    let regens = 0;
+    this.logger.log(`[${bookId}] generation started (${book.pageCount}p)`);
+
     try {
       // Stage 1 — heroes: load the main-character reference used to keep the child
       // recognizable across illustrations. This is the only hero-related work at
@@ -147,12 +154,15 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         where: { id: bookId },
         data: { stage: 'HEROES', progress: 10 },
       });
+      this.logger.log(`[${bookId}] HEROES (reference=${referenceImage ? 'yes' : 'no'})`);
 
       // Stage 2 — writing the story.
+      stage = 'STORY';
       await this.prisma.book.update({
         where: { id: bookId },
         data: { stage: 'STORY', progress: 15 },
       });
+      this.logger.log(`[${bookId}] STORY`);
       const story = await this.textGen.generateText({
         childName: book.child.name,
         childInterests: book.child.interests,
@@ -176,6 +186,7 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       // stage before the first image so a failure here is attributed to it. The
       // band is weighted by image-generating pages: TEXT_ONLY pages cost no image
       // work and don't move the bar, so progress tracks the expensive part.
+      stage = 'ILLUSTRATIONS';
       await this.prisma.book.update({
         where: { id: bookId },
         data: { stage: 'ILLUSTRATIONS', progress: 30 },
@@ -183,6 +194,9 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       const imageTotal = story.pages.filter(
         (p) => p.layout !== 'TEXT_ONLY',
       ).length;
+      this.logger.log(
+        `[${bookId}] ILLUSTRATIONS (images=${imageTotal}/${story.pages.length})`,
+      );
       let imageDone = 0;
       const pdfPages: PdfPage[] = [];
       for (const page of story.pages) {
@@ -202,10 +216,12 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
             character: page.featuresChild ? character : null,
             referenceImage: page.featuresChild ? referenceImage : null,
           };
-          imageUrl = await this.imageGen.generateImage(ctx);
+          const original = await this.imageGen.generateImage(ctx);
+          imageUrl = original;
           // QC child-facing pages against the reference; regenerate once if they drift.
           if (page.featuresChild && referenceImage) {
-            imageUrl = await this.qualityControl(imageUrl, ctx, referenceImage);
+            imageUrl = await this.qualityControl(original, ctx, referenceImage);
+            if (imageUrl !== original) regens += 1;
           }
         }
 
@@ -251,10 +267,12 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       }
 
       // Stage 4 — assembling the book.
+      stage = 'ASSEMBLE';
       await this.prisma.book.update({
         where: { id: bookId },
         data: { stage: 'ASSEMBLE', progress: 90 },
       });
+      this.logger.log(`[${bookId}] ASSEMBLE`);
 
       const pdf = await this.pdf.generate({
         title: resolveSlots(story.title, story.slots),
@@ -285,7 +303,15 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
           data: { freeAttempts: 3 },
         });
       }
+
+      this.logger.log(
+        `[${bookId}] DONE in ${Date.now() - startedAt}ms ` +
+          `(pages=${story.pages.length} images=${imageDone} regen=${regens})`,
+      );
     } catch (err) {
+      this.logger.error(
+        `[${bookId}] FAILED at ${stage} in ${Date.now() - startedAt}ms: ${String(err)}`,
+      );
       await this.markFailed(bookId);
       throw err; // let BullMQ record the failed job
     }

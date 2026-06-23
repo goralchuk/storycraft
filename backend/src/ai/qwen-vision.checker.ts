@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConsistencyChecker, ConsistencyInput } from './contracts';
+import { loggedCall } from './logged-call';
 import type { Env } from '../config/env.schema';
 
 // Vision-language consistency check via Qwen's OpenAI-compatible chat surface.
@@ -26,45 +27,49 @@ export class QwenVisionChecker extends ConsistencyChecker {
       throw new ServiceUnavailableException('QWEN_API_KEY is not configured');
     }
 
-    const res = await fetch(`${QWEN_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: QWEN_VL_MODEL,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: PROMPT },
-              { type: 'image_url', image_url: { url: input.referenceImage } },
-              { type: 'image_url', image_url: { url: input.pageImage } },
-            ],
-          },
-        ],
-      }),
+    return loggedCall('vision', QWEN_VL_MODEL, async () => {
+      const res = await fetch(`${QWEN_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: QWEN_VL_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: PROMPT },
+                { type: 'image_url', image_url: { url: input.referenceImage } },
+                { type: 'image_url', image_url: { url: input.pageImage } },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new ServiceUnavailableException(
+          `Vision checker error (${res.status}): ${detail.slice(0, 200)}`,
+        );
+      }
+
+      const body = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      const content = body.choices?.[0]?.message?.content ?? '';
+      const score = extractScore(content);
+      if (!Number.isFinite(score)) {
+        throw new ServiceUnavailableException(
+          'Vision checker returned no score',
+        );
+      }
+      // Clamp to the documented 1–10 range.
+      return Math.max(1, Math.min(10, score));
     });
-
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new ServiceUnavailableException(
-        `Vision checker error (${res.status}): ${detail.slice(0, 200)}`,
-      );
-    }
-
-    const body = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = body.choices?.[0]?.message?.content ?? '';
-    const score = extractScore(content);
-    if (!Number.isFinite(score)) {
-      throw new ServiceUnavailableException('Vision checker returned no score');
-    }
-    // Clamp to the documented 1–10 range.
-    return Math.max(1, Math.min(10, score));
   }
 }
 

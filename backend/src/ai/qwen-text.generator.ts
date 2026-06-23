@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SettingsService } from '../settings/settings.service';
 import { GeneratedText, StoryContext, TextGenerator } from './contracts';
 import { STORY_SYSTEM_PROMPT, buildStoryPrompt, parseStory } from './story-prompt';
+import { loggedCall } from './logged-call';
 import type { Env } from '../config/env.schema';
 
 // Qwen (Alibaba DashScope) OpenAI-compatible surface — same wire format as
@@ -27,37 +28,41 @@ export class QwenTextGenerator extends TextGenerator {
     }
     const { textModel } = await this.settings.get();
 
-    const res = await fetch(`${QWEN_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: textModel,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: STORY_SYSTEM_PROMPT },
-          { role: 'user', content: buildStoryPrompt(ctx) },
-        ],
-      }),
+    return loggedCall('text', textModel, async () => {
+      const res = await fetch(`${QWEN_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: textModel,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: STORY_SYSTEM_PROMPT },
+            { role: 'user', content: buildStoryPrompt(ctx) },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new ServiceUnavailableException(
+          `Text provider error (${res.status}): ${detail.slice(0, 300)}`,
+        );
+      }
+
+      const body = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      const content = body.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new ServiceUnavailableException(
+          'Text provider returned no content',
+        );
+      }
+
+      return parseStory(content, ctx);
     });
-
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new ServiceUnavailableException(
-        `Text provider error (${res.status}): ${detail.slice(0, 300)}`,
-      );
-    }
-
-    const body = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new ServiceUnavailableException('Text provider returned no content');
-    }
-
-    return parseStory(content, ctx);
   }
 }
