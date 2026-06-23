@@ -229,3 +229,4 @@ Items intentionally postponed — revisit when the trigger applies.
 | Item | Action | Trigger |
 |---|---|---|
 | Enable Qwen review PR gate | Uncomment `pull_request` in `.github/workflows/qwen-review.yml`, add `QWEN_API_KEY` to GitHub Secrets, and switch the diff base to `${{ github.event.pull_request.base.sha }}` | When we start opening PRs |
+| pg concurrent-query deprecation | `main.ts` filters one benign pg DeprecationWarning (`client is already executing a query`) emitted by Prisma 7's `@prisma/adapter-pg` parallelizing sub-queries on a single connection. Remove the filter once the adapter serializes its IO (or Prisma fixes it) | When `@prisma/adapter-pg` / `prisma` is upgraded |

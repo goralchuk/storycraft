@@ -49,6 +49,22 @@ stage, so the failure line and the stored `stage` (8.8) agree.
   `[…] FAILED at ILLUSTRATIONS in 21ms: Error: stub image failure`.
 - Backend build clean.
 
+## Follow-up fix — pg deprecation noise
+
+While exercising generation, the logs carried a recurring pg `DeprecationWarning`:
+*"Calling client.query() when the client is already executing a query …"*. Traced to
+Prisma 7's `@prisma/adapter-pg` (which pins `pg ^8.16`): its query interpreter
+parallelizes sibling sub-queries (relation loads / nested writes) on a single
+transaction connection. The queries are queued and run correctly (all integration
+tests pass) — it's a notice about a pg API removed in pg 9, emitted from inside the
+adapter, not from our code (our queries are already awaited sequentially), and pg
+can't be downgraded because the adapter depends on `^8.16`.
+
+`main.ts` installs a targeted filter over `process.emitWarning` that drops only this
+one message and passes everything else through. Verified: the integration run prints
+the warning once without the filter and zero times with it. Tracked in
+ROADMAP → Tech Debt to remove when the adapter serializes its IO.
+
 ## Notes
 
 - Logging is the metrics surface for now (single worker); a metrics exporter
