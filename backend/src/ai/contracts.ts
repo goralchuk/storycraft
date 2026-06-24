@@ -4,6 +4,8 @@ import { WritingStyle } from '@prisma/client';
 export type StoryContext = {
   childName: string;
   childInterests: string[];
+  /** Resolved profile, e.g. «мальчик, 3 года» — disambiguates a human child. */
+  childDescriptor?: string | null;
   templateTitle: string;
   templatePrompt: string;
   topicLabel?: string | null;
@@ -44,6 +46,8 @@ export type ImageContext = {
   photoUrl?: string | null;
   /** Main-character appearance description, kept consistent across the book. */
   character?: string | null;
+  /** Resolved child profile, e.g. «мальчик, 3 года» — human-child disambiguation. */
+  childDescriptor?: string | null;
   /**
    * Reference images (downscaled base64 data URIs or URLs) to condition the
    * illustration on — e.g. a hero portrait plus the previous page. All are sent

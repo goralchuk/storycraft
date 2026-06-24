@@ -12,6 +12,7 @@ import {
 } from '../ai/contracts';
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
+import { resolveChildProfile } from '../ai/child-profile';
 import { StorageService } from '../storage/storage.service';
 import { TasksService } from './tasks.service';
 import { BOOK_GENERATION_QUEUE, BookGenerationJob } from './tasks.constants';
@@ -150,6 +151,9 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       const referenceImage = mainHero?.imageKey
         ? await this.toDataUri(mainHero.imageKey)
         : null;
+      // Resolve the child's age/gender (with fallbacks) to disambiguate a human
+      // child in the story and illustration prompts (fixes e.g. «Лев» → a boy).
+      const profile = resolveChildProfile(book.child, book.template);
       await this.prisma.book.update({
         where: { id: bookId },
         data: { stage: 'HEROES', progress: 10 },
@@ -166,6 +170,7 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       const story = await this.textGen.generateText({
         childName: book.child.name,
         childInterests: book.child.interests,
+        childDescriptor: profile.descriptor,
         // UNIQUE books have no template; fall back to the user's own prompt.
         templateTitle: book.template?.title ?? 'A Personalized Story',
         templatePrompt:
@@ -212,6 +217,7 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
             featuresChild: page.featuresChild,
             photoUrl: book.photoUrl,
             character: page.featuresChild ? character : null,
+            childDescriptor: page.featuresChild ? profile.descriptor : null,
             referenceImages:
               page.featuresChild && referenceImage ? [referenceImage] : [],
           };

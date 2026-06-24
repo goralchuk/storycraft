@@ -23,6 +23,9 @@ export function buildStoryPrompt(ctx: StoryContext): string {
     ctx.promptText ? `Дополнительные пожелания родителя: ${ctx.promptText}` : '',
     ctx.writingStyle ? `Стиль повествования: ${ctx.writingStyle}` : '',
     `Настоящее имя главного ребёнка: ${ctx.childName}`,
+    ctx.childDescriptor
+      ? `Главный герой — ЧЕЛОВЕК-РЕБЁНОК (${ctx.childDescriptor}). Имя «${ctx.childName}» — это имя собственное, а НЕ животное и НЕ предмет; описывай его как обычного ребёнка и учитывай возраст в сложности текста.`
+      : '',
     ctx.childInterests.length
       ? `Интересы ребёнка: ${ctx.childInterests.join(', ')}`
       : '',
