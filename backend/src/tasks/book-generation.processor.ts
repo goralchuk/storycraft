@@ -8,6 +8,8 @@ import {
   ImageGenerator,
   ConsistencyChecker,
   ImageContext,
+  HeroBrief,
+  PageLayoutSlot,
 } from '../ai/contracts';
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
@@ -122,14 +124,27 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       // Stage 1 — heroes: load the main-character reference used to keep the child
       // recognizable across illustrations. This is the only hero-related work at
       // generation time, so it belongs to (and makes truthful) the HEROES stage.
-      const mainHero = await this.prisma.hero.findFirst({
-        where: { childId: book.child.id, role: HeroRole.MAIN },
+      const heroes = await this.prisma.hero.findMany({
+        where: { childId: book.child.id, deletedAt: null },
       });
+      const mainHero = heroes.find((h) => h.role === HeroRole.MAIN) ?? null;
+      const companions = heroes.filter((h) => h.role !== HeroRole.MAIN);
       const character = buildCharacter(mainHero);
       const referenceImage = await toDataUri(this.storage, mainHero?.imageKey ?? null);
       // Resolve the child's age/gender (with fallbacks) to disambiguate a human
       // child in the story and illustration prompts (fixes e.g. «Лев» → a boy).
       const profile = resolveChildProfile(book.child, book.template);
+      // Style: per-book selection lands with the wizard (9.10); for now the first
+      // active style. Page structure: the layout template for this book size.
+      const style = await this.prisma.styleTemplate.findFirst({
+        where: { isActive: true, deletedAt: null },
+        orderBy: { sort: 'asc' },
+      });
+      const layoutTpl = await this.prisma.pageLayoutTemplate.findFirst({
+        where: { pageCount: book.pageCount, isActive: true, deletedAt: null },
+      });
+      const pageLayout =
+        (layoutTpl?.layout as unknown as PageLayoutSlot[] | undefined) ?? null;
       await this.prisma.book.update({
         where: { id: bookId },
         data: { stage: 'HEROES', progress: 10 },
@@ -147,6 +162,11 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         childName: book.child.name,
         childInterests: book.child.interests,
         childDescriptor: profile.descriptor,
+        age: profile.age,
+        mainHero: mainHero ? toHeroBrief(mainHero) : null,
+        companions: companions.map(toHeroBrief),
+        stylePrompt: style?.prompt ?? null,
+        pageLayout,
         // UNIQUE books have no template; fall back to the user's own prompt.
         templateTitle: book.template?.title ?? 'A Personalized Story',
         templatePrompt:
@@ -159,6 +179,19 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         fear: book.fear,
         pageCount: book.pageCount,
       });
+
+      // Page structure is template-driven: set each page's layout + whether the
+      // child is shown from the layout template (overriding the model's choice).
+      if (pageLayout?.length) {
+        const slotByNum = new Map(pageLayout.map((s) => [s.pageNum, s]));
+        for (const p of story.pages) {
+          const slot = slotByNum.get(p.pageNum);
+          if (slot) {
+            p.layout = slot.layout;
+            p.featuresChild = slot.cast === 'MAIN' || slot.cast === 'ALL';
+          }
+        }
+      }
 
 
       // Stage 3 — drawing illustrations (widest band; progress 30→90%). Enter the
@@ -309,6 +342,17 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       throw err; // let BullMQ record the failed job
     }
   }
+}
+
+// Summarize a hero for the story prompt (description + portrait caption + personality).
+function toHeroBrief(hero: Hero): HeroBrief {
+  return {
+    role: hero.role,
+    name: hero.name,
+    description: hero.description,
+    imageCaption: hero.imageCaption,
+    personality: hero.personality,
+  };
 }
 
 // Compose the main-character appearance description from the MAIN hero.

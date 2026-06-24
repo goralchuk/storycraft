@@ -1,11 +1,40 @@
 import { WritingStyle } from '@prisma/client';
 
+/** A hero summarized for the story prompt. */
+export type HeroBrief = {
+  role: string;
+  name: string;
+  description?: string | null;
+  /** VL caption of the generated portrait. */
+  imageCaption?: string | null;
+  personality?: string | null;
+};
+
+/** One page's structure from a PageLayoutTemplate. */
+export type PageLayoutSlot = {
+  pageNum: number;
+  layout: PageLayout;
+  /** Who appears: ALL heroes / MAIN only / NONE / an EXTRA companion. */
+  cast: 'ALL' | 'MAIN' | 'NONE' | 'EXTRA';
+  hasImage: boolean;
+};
+
 /** Everything a generator needs to write a story. */
 export type StoryContext = {
   childName: string;
   childInterests: string[];
   /** Resolved profile, e.g. «мальчик, 3 года» — disambiguates a human child. */
   childDescriptor?: string | null;
+  /** Resolved age in years (for age-appropriate length/vocabulary). */
+  age?: number | null;
+  /** MAIN hero (the child) appearance/personality, kept consistent. */
+  mainHero?: HeroBrief | null;
+  /** Companion heroes (pets, siblings, magic, …). */
+  companions?: HeroBrief[];
+  /** Chosen book style prompt fragment. */
+  stylePrompt?: string | null;
+  /** Per-page layout/cast from the page-layout template. */
+  pageLayout?: PageLayoutSlot[] | null;
   templateTitle: string;
   templatePrompt: string;
   topicLabel?: string | null;
