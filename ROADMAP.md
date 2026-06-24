@@ -157,7 +157,7 @@ Complete all coin business logic and lock the data model so the **entire flow is
 
 | # | Task | Verification |
 |---|------|-------------|
-| 7.1 | **Remove unused schema** — drop the `Subscription` model + `SubscriptionPlan`/`SubscriptionStatus` enums + `User.subscription` relation (subscriptions are dropped in favor of coins); audit the rest and remove anything genuinely unreferenced. Keep `Rating`/`Referral` (reserved for Phase 10 features). Prisma migration | migration applies; `prisma validate` + backend build clean; no dangling references |
+| 7.1 | **Remove unused schema** — drop the `Subscription` model + `SubscriptionPlan`/`SubscriptionStatus` enums + `User.subscription` relation (subscriptions are dropped in favor of coins); audit the rest and remove anything genuinely unreferenced. Keep `Rating`/`Referral` (reserved for Phase 11 features). Prisma migration | migration applies; `prisma validate` + backend build clean; no dangling references |
 | 7.2 | **Lock the coin data model** — confirm the complete set of coin tables and document them: `User.balance` (current balance), `CoinTransaction` (append-only ledger), `PriceItem` (price catalog). No coin state lives anywhere else | data model documented in `docs/`; all coin state is in these three tables |
 | 7.3 | **Complete coin rules** — every charge/credit flows through `CoinService` and is logged; failed generation refunds the page-tier surcharge; hero free-attempt counters reset on book completion; insufficient funds consistently returns 402 | each rule has a test / manual check |
 | 7.4 | **Pricing is tunable** — seed covers every key (book types, page tiers, hero top-up, companion, packs); amounts editable via seed/admin for testing | changing a `PriceItem` amount changes the charged cost |
@@ -184,20 +184,50 @@ Stand up real book generation on the Qwen family and stabilize it, so books gene
 
 ---
 
-## Phase 9 — Real Coin Purchases (Stripe)
+## Phase 9 — Generation v2 (quality)
 
-Replaces the wallet stub-credit with real money → coins.
+Rebuild the book pipeline for quality (current output is unusable: characters don't
+match the data, heroes drift, the story is incoherent, images and plot are
+disconnected — e.g. a 3-year-old boy named «Лев» is drawn as a lion). Child + hero
+data drive the prompts; **style is chosen before heroes**; per-theme story templates;
+a deterministic final-prompt assembler; chained multi-image illustration on a
+consistency-capable model; and a persisted generation log so stages aren't lost. All
+generation stays provider-agnostic via abstractions (`TextGenerator` /
+`ImageGenerator` / `ConsistencyChecker` + an `ImageCaptioner` VL wrapper), with
+swappable implementations selected through `AppSettings` (Qwen / wan / qwen-edit now;
+ChatGPT / NanoBanana later). Prompt content (styles / themes / scaffolds) is authored
+separately by the product owner — this phase builds the tables + assembly mechanism
+and leaves the prompt fields to fill. The generated story is saved as a reusable
+`BookTemplateHistory` alongside the concrete `Book` (template catalog deferred).
 
 | # | Task | Verification |
 |---|------|-------------|
-| 9.1 | Stripe products/prices for coin packages, mapped to `PriceItem` `PACK_*` keys | Prices exist in Stripe dashboard |
-| 9.2 | Checkout session for a coin package | Redirect to Stripe works |
-| 9.3 | Stripe webhook — credit `balance` + log `CoinTransaction` on payment success (idempotent) | Duplicate webhook does not double-credit |
-| 9.4 | Wallet "buy" wired to Stripe checkout (replaces 6.21 stub credit) | Real purchase credits coins end-to-end |
+| 9.1 | **Probe image models** — live-probe `wan2.7-image-pro` and `qwen-image-edit-plus-2025-12-15` (multi-image input, request/response shape, limits, price); pick the default. Both behind `ImageGenerator`, selected via `AppSettings` | both respond; chosen model returns an image from ≥2 reference images |
+| 9.2 | **Data model** — migrations (`StyleTemplate`, `PageLayoutTemplate`, `BookGeneration`, `BookGenerationLog`, `BookTemplateHistory`); extend `Hero` (`imageCaption?`, `personality?`); reuse `Template` as story themes + a `custom` base; placeholder seeds (prompts authored later) | `migrate` + `generate` clean; seeds present |
+| 9.3 | **Child profile + disambiguation** — age/gender reach the prompts; rule “{{child}} is a human boy/girl aged N, not an animal” | «Лев» renders as a boy; prompts carry species/gender/age |
+| 9.4 | **Hero generation in the chosen style** — style chosen before heroes; MAIN from child data; companions with optional description, else a fixed образ; generate image + save the description (+ optional VL caption via the wrapper) | hero generated in the chosen style, description saved |
+| 9.5 | **Final-prompt assembler** — deterministic build (child + profile + heroes + theme + style + requirements) → JSON story; `PageLayoutTemplate` drives per-page layout and which heroes appear | assembled prompt carries all blocks; story splits into N paragraphs per the template |
+| 9.6 | **Orchestration + log** — `BookGeneration` + `BookGenerationLog`, no lost stages; on success `BookTemplateHistory` + `Book` created together | log carries every step; a failure shows where; book + history created |
+| 9.7 | **Chained illustration** — new model: heroes (descriptions + images) + short plot + previous page; VL QC | character recognizable across pages, consistent style |
+| 9.8 | **Wizard v2** — order: child → style → heroes → theme → generate | end-to-end passes, the book opens in the reader |
 
 ---
 
-## Phase 10 — Optional / Later
+## Phase 10 — Real Coin Purchases (Stripe)
+
+Replaces the wallet stub-credit with real money → coins. Deferred until the product
+is usable (after Phase 9).
+
+| # | Task | Verification |
+|---|------|-------------|
+| 10.1 | Stripe products/prices for coin packages, mapped to `PriceItem` `PACK_*` keys | Prices exist in Stripe dashboard |
+| 10.2 | Checkout session for a coin package | Redirect to Stripe works |
+| 10.3 | Stripe webhook — credit `balance` + log `CoinTransaction` on payment success (idempotent) | Duplicate webhook does not double-credit |
+| 10.4 | Wallet "buy" wired to Stripe checkout (replaces 6.21 stub credit) | Real purchase credits coins end-to-end |
+
+---
+
+## Phase 11 — Optional / Later
 
 - Ratings system on books (`Rating` model reserved)
 - Referral program — earn coins for invites (`Referral` model reserved)
@@ -211,14 +241,16 @@ Replaces the wallet stub-credit with real money → coins.
 
 ## Future Improvements — Generation
 
-Trimmed from the Phase 8 MVP (per discussion) — richer generation features to revisit once the core pipeline is solid and budget allows.
+Richer generation features to revisit once the core pipeline (Phase 9) is solid and
+budget allows. (The character profile and photo analysis are folded into Phase 9; the
+rest stay deferred.)
 
-- **Photo analysis (`qwen3-vl-flash`)** — analyze the child's photo to extract appearance and feed it into hero generation (belongs to the heroes feature, not the book pipeline).
-- **Character psychological profile** — a dedicated profile (speech style, traits, motivation) generated before the story.
-- **Dialogue stage (`qwen-flash-character`)** — per-page natural dialogue generated separately from the narrative (MVP folds light dialogue into the story prompt instead).
+- **Photo analysis (`qwen3-vl-flash`)** — full extraction of the child's appearance from a photo to feed hero generation (Phase 9 ships the optional VL-caption wrapper; deeper analysis later).
+- **Dialogue stage (`qwen-flash-character`)** — per-page natural dialogue generated separately from the narrative (Phase 9 folds light dialogue into the story prompt instead).
 - **Character variant selection** — generate 2-3 character references and let the user pick / regenerate.
 - **Generation caching** — cache character reference and profile per child; cache prompts.
 - **A/B style testing** — experiment with illustration styles and prompt variants.
+- **Per-model usage + cost counters** — track call counts and price per model to compute the economics / pricing (set up after the v2 pipeline stabilizes; informs the model abstraction).
 
 ---
 
