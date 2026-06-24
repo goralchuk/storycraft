@@ -1,7 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Job } from 'bullmq';
-import sharp from 'sharp';
 import { BookStatus, HeroRole, type Hero } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -13,6 +12,7 @@ import {
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
 import { resolveChildProfile } from '../ai/child-profile';
+import { toDataUri } from '../ai/image-data-uri';
 import { StorageService } from '../storage/storage.service';
 import { TasksService } from './tasks.service';
 import { BOOK_GENERATION_QUEUE, BookGenerationJob } from './tasks.constants';
@@ -54,28 +54,6 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
     this.logger.log(`Requeued ${orphaned.length} orphaned PROCESSING book(s)`);
   }
 
-  // Fetch a stored image and downscale it into a small base64 data URI. The image
-  // provider / VL model cap the request body (~6 MB) and our images are large, so we
-  // shrink to <=1024px JPEG. Used for both the character reference and QC scoring.
-  // Any failure → null (callers fall back gracefully).
-  private async toDataUri(imageKey: string): Promise<string | null> {
-    try {
-      const url = await this.storage.toUrl(imageKey);
-      if (!url) return null;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const input = Buffer.from(await res.arrayBuffer());
-      const out = await sharp(input)
-        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      return `data:image/jpeg;base64,${out.toString('base64')}`;
-    } catch (err) {
-      this.logger.warn(`Data URI prep failed for ${imageKey}: ${String(err)}`);
-      return null;
-    }
-  }
-
   // 8.5 — score a freshly generated child-facing illustration against the character
   // reference and regenerate it once if it scores below the pass bar. Fail-open:
   // any error keeps the original image and never fails the book.
@@ -85,7 +63,7 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
     referenceImage: string,
   ): Promise<string> {
     try {
-      const pageImage = await this.toDataUri(imageKey);
+      const pageImage = await toDataUri(this.storage, imageKey);
       if (!pageImage) return imageKey;
       const score = await this.checker.score({ referenceImage, pageImage });
       this.logger.log(`QC page score ${score}/10 (pass ${QA_PASS})`);
@@ -148,9 +126,7 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         where: { childId: book.child.id, role: HeroRole.MAIN },
       });
       const character = buildCharacter(mainHero);
-      const referenceImage = mainHero?.imageKey
-        ? await this.toDataUri(mainHero.imageKey)
-        : null;
+      const referenceImage = await toDataUri(this.storage, mainHero?.imageKey ?? null);
       // Resolve the child's age/gender (with fallbacks) to disambiguate a human
       // child in the story and illustration prompts (fixes e.g. «Лев» → a boy).
       const profile = resolveChildProfile(book.child, book.template);

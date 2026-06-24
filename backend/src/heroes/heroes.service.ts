@@ -9,14 +9,20 @@ import {
 import { HeroRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CoinService } from '../coin/coin.service';
-import { ImageGenerator } from '../ai/contracts';
+import { ImageGenerator, ImageCaptioner } from '../ai/contracts';
 import { StorageService } from '../storage/storage.service';
+import { resolveChildProfile } from '../ai/child-profile';
+import { toDataUri } from '../ai/image-data-uri';
 import type { AuthUser } from '../auth/strategies/jwt.strategy';
 
 const MAX_HEROES = 5; // 1 MAIN + up to 4 companions
 
 export type AddCompanionDto = { role: HeroRole; name: string };
-export type GenerateHeroDto = { style?: string; description?: string };
+export type GenerateHeroDto = {
+  style?: string;
+  styleId?: string;
+  description?: string;
+};
 
 @Injectable()
 export class HeroesService {
@@ -25,6 +31,7 @@ export class HeroesService {
     private readonly coin: CoinService,
     private readonly imageGen: ImageGenerator,
     private readonly storage: StorageService,
+    private readonly captioner: ImageCaptioner,
   ) {}
 
   async list(user: AuthUser, childId: string) {
@@ -99,17 +106,32 @@ export class HeroesService {
       );
     }
 
-    const style = dto.style ?? hero.style ?? undefined;
+    // Resolve the chosen style (StyleTemplate by id, else the free-text style).
+    let style = dto.style ?? hero.style ?? undefined;
+    if (dto.styleId) {
+      const st = await this.prisma.styleTemplate.findFirst({
+        where: { id: dto.styleId, isActive: true, deletedAt: null },
+      });
+      if (st) style = st.prompt;
+    }
     const description = dto.description ?? hero.description ?? undefined;
+    // A MAIN hero IS the child → disambiguate as a human child of the resolved
+    // gender/age (fixes «Лев» → a boy). Companions keep their own nature.
+    const profile = resolveChildProfile(hero.child);
+    const childDescriptor =
+      hero.role === HeroRole.MAIN ? profile.descriptor : null;
     try {
       const imageKey = await this.imageGen.generateImage({
         scene: buildHeroPrompt(hero.name, description, style),
         featuresChild: true,
+        childDescriptor,
         photoUrl: null,
       });
+      // Caption the generated portrait for later reuse (fail-open).
+      const imageCaption = await this.captionImage(imageKey);
       const updated = await this.prisma.hero.update({
         where: { id },
-        data: { imageKey, status: 'DONE', style, description },
+        data: { imageKey, status: 'DONE', style, description, imageCaption },
       });
       return {
         ...updated,
@@ -139,6 +161,17 @@ export class HeroesService {
       where: { id },
       data: { freeAttempts: { increment: 3 } },
     });
+  }
+
+  // Caption a stored portrait via the VL captioner. Fail-open: any error → null.
+  private async captionImage(imageKey: string): Promise<string | null> {
+    try {
+      const dataUri = await toDataUri(this.storage, imageKey);
+      if (!dataUri) return null;
+      return await this.captioner.caption(dataUri);
+    } catch {
+      return null;
+    }
   }
 
   private async ownedChild(user: AuthUser, childId: string) {
@@ -177,7 +210,7 @@ function buildHeroPrompt(
 ): string {
   return [
     `A friendly character portrait of ${name}${description ? `, ${description}` : ''}.`,
-    style ? `${style} style.` : '',
+    style ?? '',
     "Soft, warm children's book character art, plain background, head and shoulders.",
   ]
     .filter(Boolean)

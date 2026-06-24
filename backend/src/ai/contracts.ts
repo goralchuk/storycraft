@@ -84,3 +84,12 @@ export type ConsistencyInput = {
 export abstract class ConsistencyChecker {
   abstract score(input: ConsistencyInput): Promise<number>;
 }
+
+/**
+ * Vision-language captioner: describe an image (e.g. a generated hero portrait) in
+ * words, so the textual description can condition later generations. Input is an
+ * inline image (base64 data URI) since provider servers can't reach local storage.
+ */
+export abstract class ImageCaptioner {
+  abstract caption(imageDataUri: string): Promise<string>;
+}

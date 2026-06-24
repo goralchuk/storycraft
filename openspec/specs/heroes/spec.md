@@ -3,9 +3,7 @@
 ## Purpose
 
 Child-owned hero characters (one main + companions, max 5) with metered, billable avatar generation — free attempts, paid top-ups, paid companions, and per-child reset on book completion. Heroes are reusable across books.
-
 ## Requirements
-
 ### Requirement: Child hero roster
 
 The system SHALL let each `Child` own heroes: exactly one non-removable `MAIN` hero plus up to four companions (`PET | SIBLING | FRIEND | MAGIC`), for a maximum of five heroes per child. A hero has a `role`, `name`, optional `style`, optional `description`, optional `imageKey`, a `freeAttempts` count (default 3), and a `status` (`IDLE | GENERATING | DONE`). Heroes are owned by the child and reusable across books.
@@ -50,7 +48,9 @@ The system SHALL expose `DELETE /heroes/:id` to remove a companion. Deleting the
 
 ### Requirement: Metered avatar generation
 
-The system SHALL expose `POST /heroes/:id/generate` (optional `style`, `description`) that generates the hero's avatar via the image generator, stores its `imageKey`, sets `status` to `DONE`, and decrements `freeAttempts` by one. When `freeAttempts` is already zero, it SHALL return the 402-style top-up-required error and SHALL NOT generate or change the hero.
+The system SHALL expose `POST /heroes/:id/generate` (optional `style`, `styleId`, `description`) that generates the hero's avatar via the image generator, stores its `imageKey`, sets `status` to `DONE`, and decrements `freeAttempts` by one. When `freeAttempts` is already zero, it SHALL return the 402-style top-up-required error and SHALL NOT generate or change the hero.
+
+The generation prompt SHALL be built from the child's resolved profile: a MAIN hero SHALL be disambiguated as a human child of the resolved gender/age (so a name like «Лев» is not drawn as an animal), while a companion keeps its own nature. When a `styleId` is given, the matching style template's prompt SHALL be applied. The description used SHALL be saved on the hero, and a vision-language caption of the generated portrait SHALL be stored on `Hero.imageCaption` (fail-open: a caption error SHALL NOT fail generation).
 
 #### Scenario: Free generation consumes an attempt
 
@@ -61,6 +61,16 @@ The system SHALL expose `POST /heroes/:id/generate` (optional `style`, `descript
 
 - **WHEN** a hero with `freeAttempts` 0 is generated
 - **THEN** the top-up-required error is returned, no avatar is generated, and `freeAttempts` stays 0
+
+#### Scenario: MAIN hero is a human child in the chosen style
+
+- **WHEN** a MAIN hero whose child is named «Лев» is generated with a chosen style
+- **THEN** the prompt marks the hero as a human child of the resolved gender/age and applies the style, so the portrait is a child (not a lion)
+
+#### Scenario: Generated portrait is captioned
+
+- **WHEN** a hero avatar is generated
+- **THEN** a VL caption of the portrait is stored on `Hero.imageCaption`, and a caption failure leaves generation successful
 
 ### Requirement: Top up generations
 
@@ -79,3 +89,4 @@ The system SHALL reset `freeAttempts` to 3 for every hero of a book's child when
 
 - **WHEN** a book for a child reaches status `DONE`
 - **THEN** every hero of that child has `freeAttempts` reset to 3
+

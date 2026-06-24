@@ -14,12 +14,12 @@ The text generator SHALL produce the story title and every page's text in Russia
 
 ### Requirement: Default AI providers are Qwen
 
-The system SHALL default `AppSettings.textProvider` and `AppSettings.imageProvider` to `qwen`, with `textModel` `qwen3.7-plus` and `imageModel` `qwen-image-edit-plus-2025-12-15`. A fresh database SHALL generate real books without manual configuration. Providers and models SHALL remain switchable at runtime via `AppSettings` (an admin MAY set the image model to `wan2.7-image-pro` or `qwen-image-2.0`, or the providers to `gemini`/`stub`).
+The system SHALL default `AppSettings.textProvider` and `AppSettings.imageProvider` to `qwen`, with `textModel` `qwen3.7-plus` and `imageModel` `qwen-image-2.0` (a text-to-image-capable base model). A fresh database SHALL generate real books without manual configuration. Providers and models SHALL remain switchable at runtime via `AppSettings` (an admin MAY set the image model to `wan2.7-image-pro`, or a reference-conditioned edit model such as `qwen-image-edit-plus-2025-12-15`, or the providers to `gemini`/`stub`).
 
 #### Scenario: Fresh database uses Qwen
 
 - **WHEN** the application initializes its `AppSettings` singleton on a new database
-- **THEN** the text and image providers are `qwen` with models `qwen3.7-plus` and `qwen-image-edit-plus-2025-12-15`
+- **THEN** the text and image providers are `qwen` with models `qwen3.7-plus` and `qwen-image-2.0`
 
 #### Scenario: Provider remains switchable
 
