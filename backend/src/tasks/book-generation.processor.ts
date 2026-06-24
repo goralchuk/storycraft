@@ -179,8 +179,6 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         pageCount: book.pageCount,
       });
 
-      // Re-generate cleanly so re-runs are idempotent (cascades delete pages + illustrations).
-      await this.prisma.bookPage.deleteMany({ where: { bookId } });
 
       // Stage 3 — drawing illustrations (widest band; progress 30→90%). Enter the
       // stage before the first image so a failure here is attributed to it. The
@@ -226,27 +224,33 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
           }
         }
 
-        await this.prisma.bookPage.create({
-          data: {
+        // Update in place (no hard delete): upsert the page by (bookId, pageNum),
+        // soft-delete any prior illustration, then create the fresh one.
+        const pageRow = await this.prisma.bookPage.upsert({
+          where: { bookId_pageNum: { bookId, pageNum: page.pageNum } },
+          create: {
             bookId,
             pageNum: page.pageNum,
             text: page.text,
             layout: page.layout,
-            // Only image layouts carry an illustration.
-            ...(imageUrl
-              ? {
-                  illustrations: {
-                    create: {
-                      imageUrl,
-                      featuresChild: page.featuresChild,
-                      // Keep the tokenized scene description for debugging / regeneration.
-                      prompt: page.imageDescription || null,
-                    },
-                  },
-                }
-              : {}),
           },
+          update: { text: page.text, layout: page.layout, deletedAt: null },
         });
+        await this.prisma.illustration.updateMany({
+          where: { bookPageId: pageRow.id, deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+        if (imageUrl) {
+          await this.prisma.illustration.create({
+            data: {
+              bookPageId: pageRow.id,
+              imageUrl,
+              featuresChild: page.featuresChild,
+              // Keep the tokenized scene description for debugging / regeneration.
+              prompt: page.imageDescription || null,
+            },
+          });
+        }
 
         if (needsImage) imageDone += 1;
         const frac = imageTotal === 0 ? 1 : imageDone / imageTotal;
@@ -266,6 +270,12 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
           layout: page.layout,
         });
       }
+
+      // A shorter re-run leaves stale pages beyond the new count — soft-delete them.
+      await this.prisma.bookPage.updateMany({
+        where: { bookId, pageNum: { gt: story.pages.length }, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
 
       // Stage 4 — assembling the book.
       stage = 'ASSEMBLE';

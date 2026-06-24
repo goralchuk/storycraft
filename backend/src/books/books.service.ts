@@ -49,7 +49,11 @@ export class BooksService {
   // Drafts are surfaced only via getDraft / the dashboard banner.
   list(user: AuthUser) {
     return this.prisma.book.findMany({
-      where: { user: { email: user.email }, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+      where: {
+        user: { email: user.email },
+        status: { notIn: ['DRAFT', 'CANCELLED'] },
+        deletedAt: null,
+      },
       include: DRAFT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
@@ -57,7 +61,7 @@ export class BooksService {
 
   getDraft(user: AuthUser) {
     return this.prisma.book.findFirst({
-      where: { user: { email: user.email }, status: 'DRAFT' },
+      where: { user: { email: user.email }, status: 'DRAFT', deletedAt: null },
       include: DRAFT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
@@ -65,13 +69,14 @@ export class BooksService {
 
   async getOne(user: AuthUser, id: string) {
     const book = await this.prisma.book.findFirst({
-      where: { id, user: { email: user.email } },
+      where: { id, user: { email: user.email }, deletedAt: null },
       include: {
         template: true,
         child: true,
         topic: true,
         pages: {
-          include: { illustrations: true },
+          where: { deletedAt: null },
+          include: { illustrations: { where: { deletedAt: null } } },
           orderBy: { pageNum: 'asc' },
         },
       },
@@ -113,7 +118,7 @@ export class BooksService {
     });
 
     const existing = await this.prisma.book.findFirst({
-      where: { userId: dbUser.id, status: 'DRAFT' },
+      where: { userId: dbUser.id, status: 'DRAFT', deletedAt: null },
       include: DRAFT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
@@ -145,7 +150,11 @@ export class BooksService {
         book.id,
       );
     } catch (err) {
-      await this.prisma.book.delete({ where: { id: book.id } });
+      // Charge failed — soft-delete the just-created draft (no hard delete).
+      await this.prisma.book.update({
+        where: { id: book.id },
+        data: { deletedAt: new Date() },
+      });
       throw err;
     }
 
@@ -234,7 +243,7 @@ export class BooksService {
       select: { id: true },
     });
     const result = await this.prisma.book.updateMany({
-      where: { id, userId: dbUser.id, status: 'FAILED' },
+      where: { id, userId: dbUser.id, status: 'FAILED', deletedAt: null },
       data: { status: 'PENDING', stage: null, progress: 0 },
     });
     if (result.count === 0) {
@@ -248,11 +257,11 @@ export class BooksService {
   // once (the guarded FAILED→CANCELLED transition guarantees a single refund).
   async cancel(user: AuthUser, id: string) {
     const book = await this.prisma.book.findFirst({
-      where: { id, user: { email: user.email } },
+      where: { id, user: { email: user.email }, deletedAt: null },
     });
     if (!book) throw new NotFoundException();
     const result = await this.prisma.book.updateMany({
-      where: { id, userId: book.userId, status: 'FAILED' },
+      where: { id, userId: book.userId, status: 'FAILED', deletedAt: null },
       data: { status: 'CANCELLED' },
     });
     if (result.count === 0) {
@@ -273,7 +282,7 @@ export class BooksService {
 
   private async requireDraft(user: AuthUser, id: string) {
     const book = await this.prisma.book.findFirst({
-      where: { id, user: { email: user.email } },
+      where: { id, user: { email: user.email }, deletedAt: null },
       include: { child: true },
     });
     if (!book) throw new NotFoundException();

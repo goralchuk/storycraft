@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/strategies/jwt.strategy';
 
@@ -28,7 +24,7 @@ export class ChildrenService {
 
   list(user: AuthUser) {
     return this.prisma.child.findMany({
-      where: { user: { email: user.email } },
+      where: { user: { email: user.email }, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -53,7 +49,7 @@ export class ChildrenService {
 
   async update(user: AuthUser, id: string, dto: UpdateChildDto) {
     const child = await this.prisma.child.findFirst({
-      where: { id, user: { email: user.email } },
+      where: { id, user: { email: user.email }, deletedAt: null },
     });
     if (!child) throw new NotFoundException();
     return this.prisma.child.update({
@@ -70,13 +66,13 @@ export class ChildrenService {
 
   async remove(user: AuthUser, id: string) {
     const child = await this.prisma.child.findFirst({
-      where: { id, user: { email: user.email } },
+      where: { id, user: { email: user.email }, deletedAt: null },
     });
     if (!child) throw new NotFoundException();
-    await this.prisma.child.delete({ where: { id } }).catch((e) => {
-      if (e?.code === 'P2003')
-        throw new ConflictException('Child has books and cannot be deleted');
-      throw e;
+    // Soft delete: keep the row (and its books/heroes), hide it from reads.
+    await this.prisma.child.update({
+      where: { id },
+      data: { deletedAt: new Date() },
     });
   }
 }

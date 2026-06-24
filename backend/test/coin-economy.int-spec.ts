@@ -337,4 +337,50 @@ describe('Coin economy (integration)', () => {
     expect(await balance()).toBe(afterSubmit); // tier 12 has nothing to refund
     expect(await txCount('Refund: pages 12')).toBe(0);
   });
+
+  it('removing a hero soft-deletes it (kept in DB, hidden, uncounted)', async () => {
+    await heroes.list(user(), childId); // ensure MAIN
+    const pet = await heroes.addCompanion(user(), childId, {
+      role: HeroRole.SIBLING,
+      name: 'Sis',
+    });
+    const before = await heroes.list(user(), childId);
+
+    await heroes.remove(user(), pet.id);
+
+    const after = await heroes.list(user(), childId);
+    expect(after.find((h) => h.id === pet.id)).toBeUndefined();
+    expect(after.length).toBe(before.length - 1);
+
+    // The row is retained with deletedAt set — not physically deleted.
+    const row = await prisma.hero.findUnique({ where: { id: pet.id } });
+    expect(row).not.toBeNull();
+    expect(row!.deletedAt).not.toBeNull();
+  });
+
+  it('regeneration updates pages in place (no duplicates, no hard delete)', async () => {
+    const draftId = await newConfiguredDraft('UNIQUE', 16);
+    await books.submit(user(), draftId);
+    imageGen.fail = false;
+
+    await run(draftId);
+    const first = await prisma.bookPage.findMany({
+      where: { bookId: draftId, deletedAt: null },
+    });
+    expect(first.length).toBe(16);
+
+    // Re-run generation: pages must be reused in place, not duplicated.
+    await prisma.book.update({
+      where: { id: draftId },
+      data: { status: 'PENDING', stage: null, progress: 0 },
+    });
+    await run(draftId);
+
+    const second = await prisma.bookPage.findMany({
+      where: { bookId: draftId, deletedAt: null },
+    });
+    expect(second.length).toBe(16);
+    const firstIds = new Set(first.map((p) => p.id));
+    expect(second.every((p) => firstIds.has(p.id))).toBe(true);
+  });
 });

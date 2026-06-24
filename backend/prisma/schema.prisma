@@ -110,6 +110,7 @@ model Child {
   photoUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   books  Book[]
@@ -128,6 +129,7 @@ model Hero {
   status       HeroStatus @default(IDLE)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
 
   child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
 
@@ -175,6 +177,7 @@ model Book {
   pdfUrl       String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
 
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   child     Child?        @relation(fields: [childId], references: [id])
@@ -192,6 +195,7 @@ model BookPage {
   text      String?
   layout    PageLayout @default(IMAGE_TEXT)
   createdAt DateTime   @default(now())
+  deletedAt DateTime?
 
   book          Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
   illustrations Illustration[]
@@ -206,6 +210,7 @@ model Illustration {
   imageUrl      String?
   featuresChild Boolean  @default(false)
   createdAt     DateTime @default(now())
+  deletedAt     DateTime?
 
   bookPage BookPage @relation(fields: [bookPageId], references: [id], onDelete: Cascade)
 }

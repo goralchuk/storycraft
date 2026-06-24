@@ -31,7 +31,7 @@ export class HeroesService {
     const child = await this.ownedChild(user, childId);
     await this.ensureMain(child.id, child.name);
     const heroes = await this.prisma.hero.findMany({
-      where: { childId: child.id },
+      where: { childId: child.id, deletedAt: null },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
     });
     return Promise.all(
@@ -49,7 +49,7 @@ export class HeroesService {
       throw new BadRequestException('Cannot add a second main hero');
     }
     const count = await this.prisma.hero.count({
-      where: { childId: child.id },
+      where: { childId: child.id, deletedAt: null },
     });
     if (count >= MAX_HEROES)
       throw new ConflictException('Hero limit reached (max 5)');
@@ -61,7 +61,11 @@ export class HeroesService {
       const amount = await this.coin.priceOf('COMPANION');
       await this.coin.debit(child.userId, amount, `Companion: ${dto.name}`);
     } catch (err) {
-      await this.prisma.hero.delete({ where: { id: hero.id } });
+      // Charge failed — soft-delete the just-created hero (no hard delete).
+      await this.prisma.hero.update({
+        where: { id: hero.id },
+        data: { deletedAt: new Date() },
+      });
       throw err;
     }
     return hero;
@@ -72,7 +76,11 @@ export class HeroesService {
     if (hero.role === HeroRole.MAIN) {
       throw new ConflictException('Cannot delete the main hero');
     }
-    await this.prisma.hero.delete({ where: { id } });
+    // Soft delete: keep the row, hide it from reads.
+    await this.prisma.hero.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 
   // Metered generation: consume one free attempt atomically, then generate.
@@ -143,7 +151,7 @@ export class HeroesService {
 
   private async ownedHero(user: AuthUser, id: string) {
     const hero = await this.prisma.hero.findFirst({
-      where: { id, child: { user: { email: user.email } } },
+      where: { id, deletedAt: null, child: { user: { email: user.email } } },
       include: { child: true },
     });
     if (!hero) throw new NotFoundException('Hero not found');
@@ -152,7 +160,7 @@ export class HeroesService {
 
   private async ensureMain(childId: string, childName: string) {
     const main = await this.prisma.hero.findFirst({
-      where: { childId, role: 'MAIN' },
+      where: { childId, role: 'MAIN', deletedAt: null },
     });
     if (!main) {
       await this.prisma.hero.create({
