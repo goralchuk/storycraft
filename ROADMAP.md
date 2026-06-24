@@ -203,13 +203,15 @@ and leaves the prompt fields to fill. The generated story is saved as a reusable
 | # | Task | Verification |
 |---|------|-------------|
 | 9.1 | **Probe image models** — live-probe `wan2.7-image-pro` and `qwen-image-edit-plus-2025-12-15` (multi-image input, request/response shape, limits, price); pick the default. Both behind `ImageGenerator`, selected via `AppSettings` | both respond; chosen model returns an image from ≥2 reference images |
-| 9.2 | **Data model** — migrations (`StyleTemplate`, `PageLayoutTemplate`, `BookGeneration`, `BookGenerationLog`, `BookTemplateHistory`); extend `Hero` (`imageCaption?`, `personality?`); reuse `Template` as story themes + a `custom` base; placeholder seeds (prompts authored later) | `migrate` + `generate` clean; seeds present |
-| 9.3 | **Child profile + disambiguation** — age/gender reach the prompts; rule “{{child}} is a human boy/girl aged N, not an animal” | «Лев» renders as a boy; prompts carry species/gender/age |
-| 9.4 | **Hero generation in the chosen style** — style chosen before heroes; MAIN from child data; companions with optional description, else a fixed образ; generate image + save the description (+ optional VL caption via the wrapper) | hero generated in the chosen style, description saved |
-| 9.5 | **Final-prompt assembler** — deterministic build (child + profile + heroes + theme + style + requirements) → JSON story; `PageLayoutTemplate` drives per-page layout and which heroes appear | assembled prompt carries all blocks; story splits into N paragraphs per the template |
-| 9.6 | **Orchestration + log** — `BookGeneration` + `BookGenerationLog`, no lost stages; on success `BookTemplateHistory` + `Book` created together | log carries every step; a failure shows where; book + history created |
-| 9.7 | **Chained illustration** — new model: heroes (descriptions + images) + short plot + previous page; VL QC | character recognizable across pages, consistent style |
-| 9.8 | **Wizard v2** — order: child → style → heroes → theme → generate | end-to-end passes, the book opens in the reader |
+| 9.2 | **Soft-delete convention** — no hard deletes from code: `deletedAt` on user-facing / derived entities (`Hero`, `Child`, `Book`, `BookPage`, `Illustration`), list/read queries filter it out, limits & unique checks ignore soft-deleted; create→rollback paths (`createDraft`, `addCompanion`) use transactions; page re-gen updates in place (no `deleteMany`) | a user "delete" hides the row but keeps it; lists exclude it; re-gen leaves no orphan |
+| 9.3 | **Data model** — migrations (`StyleTemplate`, `PageLayoutTemplate`, `BookGeneration`, `BookGenerationLog`, `BookTemplateHistory`); extend `Hero` (`imageCaption?`, `personality?`); reuse `Template` as story themes + a `custom` base; placeholder seeds (prompts authored later) | `migrate` + `generate` clean; seeds present |
+| 9.4 | **Child profile + disambiguation** — age/gender reach the prompts; rule “{{child}} is a human boy/girl aged N, not an animal” | «Лев» renders as a boy; prompts carry species/gender/age |
+| 9.5 | **Hero generation in the chosen style** — style chosen before heroes; MAIN from child data; companions with optional description, else a fixed образ; generate image + save the description (+ optional VL caption via the wrapper) | hero generated in the chosen style, description saved |
+| 9.6 | **Final-prompt assembler** — deterministic build (child + profile + heroes + theme + style + requirements) → JSON story; `PageLayoutTemplate` drives per-page layout and which heroes appear | assembled prompt carries all blocks; story splits into N paragraphs per the template |
+| 9.7 | **Orchestration + log** — `BookGeneration` (status/step/progress/started/finished/error) + `BookGenerationLog`, no lost stages; `Book` carries `finishedAt`; poller reads `BookGeneration`; on success `BookTemplateHistory` + `Book` created together | log carries every step; a failure shows where; book + history created |
+| 9.8 | **Queue concurrency & rate limiting** — cap worker concurrency + BullMQ rate-limiter on external AI calls + retry/backoff on 429/timeout (reuse existing BullMQ/Redis), so ~100 concurrent users don't overload the provider or us | concurrent submissions run within the limit; 429/timeout retries with backoff; no lost jobs |
+| 9.9 | **Chained illustration** — new model: heroes (descriptions + images) + short plot + previous page; VL QC | character recognizable across pages, consistent style |
+| 9.10 | **Wizard v2** — order: child → style → heroes → theme → generate | end-to-end passes, the book opens in the reader |
 
 ---
 
@@ -251,6 +253,7 @@ rest stay deferred.)
 - **Generation caching** — cache character reference and profile per child; cache prompts.
 - **A/B style testing** — experiment with illustration styles and prompt variants.
 - **Per-model usage + cost counters** — track call counts and price per model to compute the economics / pricing (set up after the v2 pipeline stabilizes; informs the model abstraction).
+- **Draft-generation scratch store** — generate drafts/iterations in a throwaway store (e.g. MongoDB) and promote only the final result into the main DB, to keep Postgres clean during trial-and-error generation.
 
 ---
 
