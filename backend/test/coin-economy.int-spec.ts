@@ -224,6 +224,24 @@ describe('Coin economy (integration)', () => {
     const all = await prisma.hero.findMany({ where: { childId } });
     expect(all.every((h) => h.freeAttempts === 3)).toBe(true); // MAIN was 6 after top-up
     expect(await balance()).toBe(before); // completion does not move coins
+
+    // Orchestration (9.7): a DONE generation with a step log, a linked history, and finishedAt.
+    expect(done.finishedAt).not.toBeNull();
+    expect(done.templateHistoryId).not.toBeNull();
+    const gen = await prisma.bookGeneration.findFirstOrThrow({
+      where: { bookId: book.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(gen.status).toBe('DONE');
+    expect(gen.finishedAt).not.toBeNull();
+    const logCount = await prisma.bookGenerationLog.count({
+      where: { generationId: gen.id },
+    });
+    expect(logCount).toBeGreaterThanOrEqual(4); // HEROES/STORY/ILLUSTRATIONS/ASSEMBLE/DONE
+    const history = await prisma.bookTemplateHistory.findUniqueOrThrow({
+      where: { id: done.templateHistoryId! },
+    });
+    expect(history.storyPrompt.length).toBeGreaterThan(0);
   });
 
   it('an admin price change applies to the next charge', async () => {
@@ -249,6 +267,15 @@ describe('Coin economy (integration)', () => {
     expect(book.status).toBe('FAILED');
     expect(await balance()).toBe(afterSubmit); // failure does NOT refund
     expect(await txCount('Refund: pages 16')).toBe(0);
+
+    // Orchestration (9.7): the generation record is FAILED with the failing stage + error.
+    const failedGen = await prisma.bookGeneration.findFirstOrThrow({
+      where: { bookId: draftId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(failedGen.status).toBe('FAILED');
+    expect(failedGen.currentStep).toBe('ILLUSTRATIONS');
+    expect(failedGen.error).toBeTruthy();
 
     // Free retry: back to PENDING, re-enqueued (stub), no charge.
     await books.retry(user(), draftId);

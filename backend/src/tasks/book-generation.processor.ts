@@ -1,19 +1,27 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { BookStatus, HeroRole, type Hero } from '@prisma/client';
+import {
+  BookStatus,
+  GenerationStatus,
+  HeroRole,
+  Prisma,
+  type Hero,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   TextGenerator,
   ImageGenerator,
   ConsistencyChecker,
   ImageContext,
+  StoryContext,
   HeroBrief,
   PageLayoutSlot,
 } from '../ai/contracts';
 import { PdfService, PdfPage } from '../pdf/pdf.service';
 import { resolveSlots } from '../pdf/slots';
 import { resolveChildProfile } from '../ai/child-profile';
+import { buildStoryPrompt } from '../ai/story-prompt';
 import { toDataUri } from '../ai/image-data-uri';
 import { StorageService } from '../storage/storage.service';
 import { TasksService } from './tasks.service';
@@ -43,6 +51,15 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
   // re-enqueue so generation resumes (no book stays stuck). On a single instance,
   // any PROCESSING at startup has no live worker, so this is safe.
   async onModuleInit() {
+    // Close any BookGeneration left PROCESSING by a crash/restart.
+    await this.prisma.bookGeneration.updateMany({
+      where: { status: GenerationStatus.PROCESSING },
+      data: {
+        status: GenerationStatus.FAILED,
+        error: 'orphaned (worker restart)',
+        finishedAt: new Date(),
+      },
+    });
     const orphaned = await this.prisma.book.findMany({
       where: { status: BookStatus.PROCESSING },
       select: { id: true },
@@ -76,6 +93,22 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       this.logger.warn(`QC skipped: ${String(err)}`);
       return imageKey;
     }
+  }
+
+  // Advance the orchestration record and append a step to its log (9.7).
+  private async logStep(
+    generationId: string,
+    step: string,
+    progress: number,
+    message: string,
+  ) {
+    await this.prisma.bookGeneration.update({
+      where: { id: generationId },
+      data: { currentStep: step, progress },
+    });
+    await this.prisma.bookGenerationLog.create({
+      data: { generationId, step, message },
+    });
   }
 
   // Mark a live book FAILED, keeping its last stage. No coin refund — the user can
@@ -120,6 +153,17 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
     let regens = 0;
     this.logger.log(`[${bookId}] generation started (${book.pageCount}p)`);
 
+    // Orchestration record for this run (9.7): durable state + step log + history.
+    const gen = await this.prisma.bookGeneration.create({
+      data: {
+        bookId,
+        status: GenerationStatus.PROCESSING,
+        currentStep: 'HEROES',
+        progress: 5,
+        startedAt: new Date(),
+      },
+    });
+
     try {
       // Stage 1 — heroes: load the main-character reference used to keep the child
       // recognizable across illustrations. This is the only hero-related work at
@@ -149,6 +193,12 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         where: { id: bookId },
         data: { stage: 'HEROES', progress: 10 },
       });
+      await this.logStep(
+        gen.id,
+        'HEROES',
+        10,
+        `reference=${referenceImage ? 'yes' : 'no'}, companions=${companions.length}`,
+      );
       this.logger.log(`[${bookId}] HEROES (reference=${referenceImage ? 'yes' : 'no'})`);
 
       // Stage 2 — writing the story.
@@ -157,8 +207,9 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         where: { id: bookId },
         data: { stage: 'STORY', progress: 15 },
       });
+      await this.logStep(gen.id, 'STORY', 15, 'writing story');
       this.logger.log(`[${bookId}] STORY`);
-      const story = await this.textGen.generateText({
+      const storyCtx: StoryContext = {
         childName: book.child.name,
         childInterests: book.child.interests,
         childDescriptor: profile.descriptor,
@@ -178,7 +229,8 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         writingStyle: book.writingStyle,
         fear: book.fear,
         pageCount: book.pageCount,
-      });
+      };
+      const story = await this.textGen.generateText(storyCtx);
 
       // Page structure is template-driven: set each page's layout + whether the
       // child is shown from the layout template (overriding the model's choice).
@@ -206,6 +258,12 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       const imageTotal = story.pages.filter(
         (p) => p.layout !== 'TEXT_ONLY',
       ).length;
+      await this.logStep(
+        gen.id,
+        'ILLUSTRATIONS',
+        30,
+        `images=${imageTotal}/${story.pages.length}`,
+      );
       this.logger.log(
         `[${bookId}] ILLUSTRATIONS (images=${imageTotal}/${story.pages.length})`,
       );
@@ -298,6 +356,7 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         where: { id: bookId },
         data: { stage: 'ASSEMBLE', progress: 90 },
       });
+      await this.logStep(gen.id, 'ASSEMBLE', 90, 'assembling PDF');
       this.logger.log(`[${bookId}] ASSEMBLE`);
 
       const pdf = await this.pdf.generate({
@@ -311,6 +370,19 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         'application/pdf',
       );
 
+      // Persist the run as a reusable, child-agnostic story history (9.7).
+      const history = await this.prisma.bookTemplateHistory.create({
+        data: {
+          title: story.title,
+          slots: story.slots as Prisma.InputJsonValue,
+          pages: story.pages as unknown as Prisma.InputJsonValue,
+          storyPrompt: buildStoryPrompt(storyCtx),
+          styleTemplateId: style?.id ?? null,
+          themeTemplateId: book.templateId ?? null,
+          meta: { images: imageDone, regens } as Prisma.InputJsonValue,
+        },
+      });
+
       await this.prisma.book.update({
         where: { id: bookId },
         data: {
@@ -319,6 +391,8 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
           pdfUrl: pdfKey,
           status: BookStatus.DONE,
           progress: 100,
+          finishedAt: new Date(),
+          templateHistoryId: history.id,
         },
       });
 
@@ -330,6 +404,23 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
         });
       }
 
+      await this.prisma.bookGeneration.update({
+        where: { id: gen.id },
+        data: {
+          status: GenerationStatus.DONE,
+          currentStep: 'DONE',
+          progress: 100,
+          finishedAt: new Date(),
+        },
+      });
+      await this.prisma.bookGenerationLog.create({
+        data: {
+          generationId: gen.id,
+          step: 'DONE',
+          message: `pages=${story.pages.length} images=${imageDone} regen=${regens}`,
+        },
+      });
+
       this.logger.log(
         `[${bookId}] DONE in ${Date.now() - startedAt}ms ` +
           `(pages=${story.pages.length} images=${imageDone} regen=${regens})`,
@@ -338,6 +429,23 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       this.logger.error(
         `[${bookId}] FAILED at ${stage} in ${Date.now() - startedAt}ms: ${String(err)}`,
       );
+      await this.prisma.bookGeneration.update({
+        where: { id: gen.id },
+        data: {
+          status: GenerationStatus.FAILED,
+          currentStep: stage,
+          error: String(err).slice(0, 500),
+          finishedAt: new Date(),
+        },
+      });
+      await this.prisma.bookGenerationLog.create({
+        data: {
+          generationId: gen.id,
+          step: stage,
+          level: 'error',
+          message: String(err).slice(0, 500),
+        },
+      });
       await this.markFailed(bookId);
       throw err; // let BullMQ record the failed job
     }

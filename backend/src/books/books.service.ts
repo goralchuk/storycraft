@@ -79,6 +79,8 @@ export class BooksService {
           include: { illustrations: { where: { deletedAt: null } } },
           orderBy: { pageNum: 'asc' },
         },
+        // Latest generation run (9.7): state surfaced for the poller / diagnostics.
+        generations: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
     if (!book) throw new NotFoundException();

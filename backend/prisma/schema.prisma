@@ -187,6 +187,7 @@ model Book {
   stage        BookStage?
   progress     Int           @default(0)
   pdfUrl       String?
+  finishedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   deletedAt    DateTime?
