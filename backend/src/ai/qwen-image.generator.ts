@@ -34,9 +34,12 @@ export class QwenImageGenerator extends ImageGenerator {
     if (!apiKey) {
       throw new ServiceUnavailableException('QWEN_API_KEY is not configured');
     }
-    const { imageModel } = await this.settings.get();
+    const { imageModel, imageEditModel } = await this.settings.get();
+    // Hybrid: the edit model preserves a reference best but needs ≥1 input image;
+    // the base model handles reference-less (text-only) pages.
+    const model = ctx.referenceImages?.length ? imageEditModel : imageModel;
 
-    return loggedCall('image', imageModel, async () => {
+    return loggedCall('image', model, async () => {
       const res = await fetch(QWEN_IMAGE_URL, {
         method: 'POST',
         headers: {
@@ -44,7 +47,7 @@ export class QwenImageGenerator extends ImageGenerator {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: imageModel,
+          model,
           input: {
             messages: [
               {

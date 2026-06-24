@@ -12,4 +12,4 @@
 
 - **Качество генерации книги** → **ROADMAP Phase 9 — Generation v2** (принято).
 - **Счётчики стоимости по моделям** → **ROADMAP Future Improvements — Generation**.
-- **Дефолт image-модели (edit-plus не умеет text-only)** → исправлено в 9.5 (база = `qwen-image-2.0`); гибрид edit/base — **ROADMAP 9.7**.
+- **Дефолт image-модели (edit-plus не умеет text-only)** → исправлено в 9.5 (база = `qwen-image-2.0`); гибрид edit/base реализован (change `hybrid-image-model`).
