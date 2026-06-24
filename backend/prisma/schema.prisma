@@ -263,7 +263,7 @@ model AppSettings {
   textProvider  String   @default("qwen")
   textModel     String   @default("qwen3.7-plus")
   imageProvider String   @default("qwen")
-  imageModel    String   @default("qwen-image-2.0")
+  imageModel    String   @default("qwen-image-edit-plus-2025-12-15")
   updatedAt     DateTime @updatedAt
 }
 

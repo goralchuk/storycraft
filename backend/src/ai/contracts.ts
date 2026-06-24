@@ -44,8 +44,12 @@ export type ImageContext = {
   photoUrl?: string | null;
   /** Main-character appearance description, kept consistent across the book. */
   character?: string | null;
-  /** Downscaled base64 data URI of the main-character reference image. */
-  referenceImage?: string | null;
+  /**
+   * Reference images (downscaled base64 data URIs or URLs) to condition the
+   * illustration on — e.g. a hero portrait plus the previous page. All are sent
+   * to the provider in one request; empty/omitted means prompt-only generation.
+   */
+  referenceImages?: string[];
 };
 
 /**

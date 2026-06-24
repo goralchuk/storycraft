@@ -214,7 +214,8 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
             featuresChild: page.featuresChild,
             photoUrl: book.photoUrl,
             character: page.featuresChild ? character : null,
-            referenceImage: page.featuresChild ? referenceImage : null,
+            referenceImages:
+              page.featuresChild && referenceImage ? [referenceImage] : [],
           };
           const original = await this.imageGen.generateImage(ctx);
           imageUrl = original;

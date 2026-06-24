@@ -49,14 +49,16 @@ export class QwenImageGenerator extends ImageGenerator {
             messages: [
               {
                 role: 'user',
-                // A reference image (when present) conditions the character's look.
-                content: ctx.referenceImage
-                  ? [{ image: ctx.referenceImage }, { text: buildPrompt(ctx) }]
-                  : [{ text: buildPrompt(ctx) }],
+                // Reference images (when present) condition the character's look /
+                // scene continuity; each is sent as its own image content part.
+                content: [
+                  ...(ctx.referenceImages ?? []).map((image) => ({ image })),
+                  { text: buildPrompt(ctx) },
+                ],
               },
             ],
           },
-          parameters: { negative_prompt: '' },
+          parameters: { negative_prompt: '', watermark: false },
         }),
       });
 
