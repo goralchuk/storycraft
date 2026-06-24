@@ -19,6 +19,8 @@ type Book = {
   template: { title: string; icon: string | null; coverColor: string | null } | null;
   topic: { icon: string; label: string } | null;
   child: { name: string } | null;
+  // Latest generation run (9.7); the poller reads live state from it (9.10).
+  generations: { currentStep: string | null; progress: number }[];
 };
 
 const STAGES: { key: NonNullable<BookStage>; label: string; note: string }[] = [
@@ -58,7 +60,11 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   const cover = book.template?.coverColor ?? undefined;
   const emoji = book.template?.icon ?? book.topic?.icon ?? '📖';
   const inProgress = book.status === 'PENDING' || book.status === 'PROCESSING';
-  const currentIndex = book.stage ? STAGES.findIndex((s) => s.key === book.stage) : 0;
+  // Live progress is read from the latest generation record, falling back to the book.
+  const gen = book.generations?.[0];
+  const liveStage = (gen?.currentStep ?? book.stage) as BookStage;
+  const liveProgress = gen?.progress ?? book.progress;
+  const currentIndex = liveStage ? STAGES.findIndex((s) => s.key === liveStage) : 0;
 
   return (
     <main className={wrap}>
@@ -110,10 +116,10 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           <div className="mb-2 h-2.5 overflow-hidden rounded-pill bg-border">
             <div
               className="h-full rounded-pill bg-primary transition-[width] duration-500"
-              style={{ width: `${book.progress}%` }}
+              style={{ width: `${liveProgress}%` }}
             />
           </div>
-          <div className="mb-6 text-right font-display text-[13px] font-bold text-faint">{book.progress}%</div>
+          <div className="mb-6 text-right font-display text-[13px] font-bold text-faint">{liveProgress}%</div>
 
           <div className="flex flex-col gap-3">
             {STAGES.map((s, i) => {

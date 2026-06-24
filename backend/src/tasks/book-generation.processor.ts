@@ -198,10 +198,14 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       const profile = resolveChildProfile(book.child, book.template);
       // Style: per-book selection lands with the wizard (9.10); for now the first
       // active style. Page structure: the layout template for this book size.
-      const style = await this.prisma.styleTemplate.findFirst({
-        where: { isActive: true, deletedAt: null },
-        orderBy: { sort: 'asc' },
-      });
+      const style = book.styleTemplateId
+        ? await this.prisma.styleTemplate.findFirst({
+            where: { id: book.styleTemplateId, deletedAt: null },
+          })
+        : await this.prisma.styleTemplate.findFirst({
+            where: { isActive: true, deletedAt: null },
+            orderBy: { sort: 'asc' },
+          });
       const layoutTpl = await this.prisma.pageLayoutTemplate.findFirst({
         where: { pageCount: book.pageCount, isActive: true, deletedAt: null },
       });

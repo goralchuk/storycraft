@@ -5,9 +5,7 @@
 The redesigned multi-step book-creation wizard — step 1 (book type / template +
 pay → DRAFT) and step 2 (main child, inline hero generation, story settings, and
 template field-locking). Step 3 (generation/reader) is delivered separately.
-
 ## Requirements
-
 ### Requirement: Wizard step indicator
 
 The book wizard SHALL present a three-step indicator (type → configuration →
@@ -75,10 +73,17 @@ status (idle / generating / done).
 
 ### Requirement: Step 2 — story settings
 
-Step 2 SHALL let the user set the illustration style, the story topic, the
-page-tier length (showing per-tier surcharges), and an optional free-text wish,
-persisting them to the draft. For Template books these story settings SHALL be
-frozen and only hero configuration editable.
+Step 2 SHALL let the user choose the book's visual style from the available style
+templates **before** configuring heroes, and SHALL set the story topic, the page-tier
+length (showing per-tier surcharges), and an optional free-text wish after heroes,
+persisting them to the draft (the style as `Book.styleTemplateId`). The chosen style
+SHALL be applied to hero image generation. For Template books these story settings
+SHALL be frozen and only hero configuration editable.
+
+#### Scenario: Style chosen before heroes and applied
+
+- **WHEN** the user picks a book style and then generates a hero
+- **THEN** the style is saved on the draft and the hero portrait is generated in that style
 
 #### Scenario: Settings saved to draft
 
@@ -136,14 +141,14 @@ direct the user to top up.
 
 ### Requirement: Step 3 — live progress
 
-While the book is generating, step 3 SHALL display the four named stages
-(heroes → story → illustrations → assemble) with their completion state and a
-progress percentage, refreshing automatically until a terminal status.
+Step 3 SHALL show live generation progress read from the book's latest generation
+record (current step and percentage), falling back to the book's own stage/progress
+when no generation record is present, polling until a terminal status is reached.
 
-#### Scenario: Progress advances
+#### Scenario: Progress advances from the generation record
 
 - **WHEN** generation is running
-- **THEN** the current stage and progress percentage are shown and update without a manual reload
+- **THEN** step 3 shows the current step and percentage from the latest generation record and updates as it advances
 
 ### Requirement: Step 3 — completion and failure
 
@@ -160,3 +165,4 @@ step 3 SHALL show an error state with a way to try again.
 
 - **WHEN** generation has failed
 - **THEN** an error is shown with an option to try again
+

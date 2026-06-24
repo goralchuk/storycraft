@@ -16,10 +16,14 @@ export async function generateHeroAction(formData: FormData) {
   const childId = formData.get('childId') as string;
   const heroId = formData.get('heroId') as string;
   const description = (formData.get('description') as string)?.trim() || undefined;
+  const styleId = (formData.get('styleId') as string) || undefined;
 
   const res = await apiFetch(`/heroes/${heroId}/generate`, {
     method: 'POST',
-    body: JSON.stringify(description ? { description } : {}),
+    body: JSON.stringify({
+      ...(description ? { description } : {}),
+      ...(styleId ? { styleId } : {}),
+    }),
   });
   if (res.status === 402) redirect(`${heroesPath(childId)}?error=topup`);
   refreshHeroes(childId);

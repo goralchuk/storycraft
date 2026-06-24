@@ -16,6 +16,7 @@ import { StorageModule } from './storage/storage.module';
 import { CoinModule } from './coin/coin.module';
 import { PricingModule } from './pricing/pricing.module';
 import { HeroesModule } from './heroes/heroes.module';
+import { StylesModule } from './styles/styles.module';
 import { validate } from './config/env.schema';
 import type { Env } from './config/env.schema';
 
@@ -43,6 +44,7 @@ import type { Env } from './config/env.schema';
     CoinModule,
     PricingModule,
     HeroesModule,
+    StylesModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

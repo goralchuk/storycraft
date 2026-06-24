@@ -36,13 +36,13 @@ export async function saveDraftAction(formData: FormData) {
   const id = formData.get('draftId') as string;
   const childId = formData.get('childId') as string;
   const pageCount = Number(formData.get('pageCount'));
-  const writingStyle = (formData.get('writingStyle') as string) || undefined;
+  const styleTemplateId = (formData.get('styleTemplateId') as string) || undefined;
   const topicId = (formData.get('topicId') as string) || undefined;
   const promptText = formData.get('promptText') as string | null;
 
   const patch: Record<string, unknown> = { childId };
   if (Number.isFinite(pageCount)) patch.pageCount = pageCount;
-  if (writingStyle) patch.writingStyle = writingStyle;
+  if (styleTemplateId) patch.styleTemplateId = styleTemplateId;
   if (topicId) patch.topicId = topicId;
   if (promptText !== null) patch.promptText = promptText;
 

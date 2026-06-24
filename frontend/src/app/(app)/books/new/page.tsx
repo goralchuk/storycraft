@@ -4,7 +4,12 @@ import { apiFetch, jsonOrNull } from '@/lib/api';
 import { getPricing } from '@/lib/pricing';
 import WizardStepper from '@/components/WizardStepper';
 import WizardStep1, { type TemplateOption } from './WizardStep1';
-import WizardStep2, { type Child, type Hero, type Topic } from './WizardStep2';
+import WizardStep2, {
+  type Child,
+  type Hero,
+  type Topic,
+  type StyleOption,
+} from './WizardStep2';
 
 type Draft = {
   id: string;
@@ -12,7 +17,7 @@ type Draft = {
   childId: string | null;
   pageCount: number | null;
   topicId: string | null;
-  writingStyle: string | null;
+  styleTemplateId: string | null;
   promptText: string | null;
   template: { title: string } | null;
 };
@@ -50,12 +55,14 @@ export default async function NewBookPage() {
   }
 
   // STEP 2 — configure the paid draft, then generate.
-  const [childrenRes, topicsRes] = await Promise.all([
+  const [childrenRes, topicsRes, stylesRes] = await Promise.all([
     apiFetch('/children', { cache: 'no-store' }),
     apiFetch('/topics', { cache: 'no-store' }),
+    apiFetch('/styles', { cache: 'no-store' }),
   ]);
   const children = (childrenRes.ok ? await childrenRes.json() : []) as Child[];
   const topics = (topicsRes.ok ? await topicsRes.json() : []) as Topic[];
+  const styles = (stylesRes.ok ? await stylesRes.json() : []) as StyleOption[];
 
   // Heroes belong to the selected child; only load them once a child is chosen.
   let heroes: Hero[] = [];
@@ -72,6 +79,7 @@ export default async function NewBookPage() {
         kids={children}
         heroes={heroes}
         topics={topics}
+        styles={styles}
         balance={me.balance}
         companionCost={price('COMPANION')}
         topupCost={price('HERO_TOPUP')}

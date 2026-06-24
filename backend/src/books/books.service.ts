@@ -19,6 +19,7 @@ export type CreateDraftDto = {
 export type UpdateDraftDto = {
   childId?: string;
   topicId?: string;
+  styleTemplateId?: string;
   pageCount?: number;
   promptText?: string;
   writingStyle?: WritingStyle;
@@ -188,6 +189,9 @@ export class BooksService {
       data: {
         ...(dto.childId !== undefined ? { childId: dto.childId } : {}),
         ...(dto.topicId !== undefined ? { topicId: dto.topicId } : {}),
+        ...(dto.styleTemplateId !== undefined
+          ? { styleTemplateId: dto.styleTemplateId }
+          : {}),
         ...(dto.pageCount !== undefined ? { pageCount: dto.pageCount } : {}),
         ...(dto.promptText !== undefined ? { promptText: dto.promptText } : {}),
         ...(dto.writingStyle !== undefined

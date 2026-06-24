@@ -176,6 +176,7 @@ model Book {
   topicId      String?
   bookType     BookType      @default(UNIQUE)
   templateHistoryId String?
+  styleTemplateId   String?
   title        String?
   pageCount    Int           @default(10)
   promptText   String?
@@ -197,6 +198,7 @@ model Book {
   template        Template?            @relation(fields: [templateId], references: [id])
   topic           Topic?               @relation(fields: [topicId], references: [id])
   templateHistory BookTemplateHistory? @relation(fields: [templateHistoryId], references: [id])
+  styleTemplate   StyleTemplate?       @relation(fields: [styleTemplateId], references: [id])
   pages           BookPage[]
   tasks           Task[]
   ratings         Rating[]
@@ -324,6 +326,8 @@ model StyleTemplate {
   sort        Int      @default(0)
   createdAt   DateTime @default(now())
   deletedAt   DateTime?
+
+  books Book[]
 }
 
 // Per-size page layout: for each page, its layout and which characters appear.

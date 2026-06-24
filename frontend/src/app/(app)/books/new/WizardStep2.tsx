@@ -21,6 +21,7 @@ export type Hero = {
   imageUrl: string | null;
 };
 export type Topic = { id: string; icon: string; label: string };
+export type StyleOption = { id: string; name: string; description: string | null };
 
 type Draft = {
   id: string;
@@ -28,17 +29,11 @@ type Draft = {
   childId: string | null;
   pageCount: number | null;
   topicId: string | null;
-  writingStyle: string | null;
+  styleTemplateId: string | null;
   promptText: string | null;
   template: { title: string } | null;
 };
 
-const STYLES = [
-  { key: 'WATERCOLOR', glyph: '🎨', label: 'Акварель', hint: 'мягкий, нежный' },
-  { key: 'ADVENTURE', glyph: '🗺️', label: 'Приключение', hint: 'яркий, смелый' },
-  { key: 'FUNNY', glyph: '😄', label: 'Весёлый', hint: 'забавный' },
-  { key: 'GENTLE', glyph: '🌸', label: 'Нежный', hint: 'тёплый' },
-];
 const PAGE_TIERS = [12, 16, 20, 24] as const;
 const ROLE_LABEL: Record<Hero['role'], string> = {
   MAIN: 'Главный герой',
@@ -71,11 +66,13 @@ function HeroCard({
   hero,
   childId,
   topupCost,
+  styleId,
   styleLabel,
 }: {
   hero: Hero;
   childId: string;
   topupCost: number;
+  styleId: string;
   styleLabel: string;
 }) {
   const done = hero.status === 'DONE' && !!hero.imageUrl;
@@ -147,6 +144,7 @@ function HeroCard({
           <form action={generateHeroAction} className="mt-2.5">
             <input type="hidden" name="childId" value={childId} />
             <input type="hidden" name="heroId" value={hero.id} />
+            <input type="hidden" name="styleId" value={styleId} />
             <textarea
               name="description"
               defaultValue={hero.description ?? ''}
@@ -182,6 +180,7 @@ export default function WizardStep2({
   kids,
   heroes,
   topics,
+  styles,
   balance,
   companionCost,
   topupCost,
@@ -191,19 +190,20 @@ export default function WizardStep2({
   kids: Child[];
   heroes: Hero[];
   topics: Topic[];
+  styles: StyleOption[];
   balance: number;
   companionCost: number;
   topupCost: number;
   pageSurcharge: Record<number, number>;
 }) {
   const isTemplate = draft.bookType === 'TEMPLATE';
-  const [style, setStyle] = useState(draft.writingStyle ?? 'WATERCOLOR');
+  const [styleId, setStyleId] = useState(draft.styleTemplateId ?? styles[0]?.id ?? '');
   const [topicId, setTopicId] = useState(draft.topicId ?? '');
   const [pages, setPages] = useState(draft.pageCount ?? 12);
   const [wish, setWish] = useState(draft.promptText ?? '');
   const [addingHero, setAddingHero] = useState(false);
 
-  const styleLabel = STYLES.find((s) => s.key === style)?.label ?? '';
+  const styleLabel = styles.find((s) => s.id === styleId)?.name ?? '';
   const surcharge = pageSurcharge[pages] ?? 0;
   const childSelected = !!draft.childId;
   const atLimit = heroes.length >= MAX_HEROES;
@@ -266,6 +266,30 @@ export default function WizardStep2({
         </p>
       </div>
 
+      {/* book style — chosen BEFORE heroes so portraits are generated in it */}
+      {!isTemplate && styles.length > 0 && (
+        <div className="mb-2">
+          <h3 className="mb-3 font-display text-lg font-bold">
+            Стиль книги{' '}
+            <span className="text-sm font-semibold text-faint">— выберите до генерации героев</span>
+          </h3>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {styles.map((s) => (
+              <button
+                type="button"
+                key={s.id}
+                onClick={() => setStyleId(s.id)}
+                className={`${cardSel(styleId === s.id)} p-4 text-center`}
+              >
+                <div className="text-[26px]">🎨</div>
+                <div className="mt-[5px] text-sm font-bold">{s.name}</div>
+                {s.description && <div className="text-xs text-faint">{s.description}</div>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* heroes */}
       {!childSelected ? (
         <div className="rounded-[20px] border-2 border-dashed border-[#e0d4c5] bg-white/40 px-6 py-10 text-center text-muted">
@@ -287,7 +311,7 @@ export default function WizardStep2({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
             {heroes.map((h) => (
-              <HeroCard key={h.id} hero={h} childId={draft.childId!} topupCost={topupCost} styleLabel={styleLabel} />
+              <HeroCard key={h.id} hero={h} childId={draft.childId!} topupCost={topupCost} styleId={styleId} styleLabel={styleLabel} />
             ))}
 
             {!atLimit && (
@@ -352,22 +376,6 @@ export default function WizardStep2({
       {/* story settings (frozen for templates) */}
       {!isTemplate && (
         <div className="mt-8">
-          <h3 className="mb-3 font-display text-lg font-bold">Стиль рисовки</h3>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {STYLES.map((s) => (
-              <button
-                type="button"
-                key={s.key}
-                onClick={() => setStyle(s.key)}
-                className={`${cardSel(style === s.key)} p-4 text-center`}
-              >
-                <div className="text-[26px]">{s.glyph}</div>
-                <div className="mt-[5px] text-sm font-bold">{s.label}</div>
-                <div className="text-xs text-faint">{s.hint}</div>
-              </button>
-            ))}
-          </div>
-
           {topics.length > 0 && (
             <>
               <h3 className="mb-3 mt-7 font-display text-lg font-bold">Тема истории</h3>
@@ -447,7 +455,7 @@ export default function WizardStep2({
         <input type="hidden" name="childId" value={draft.childId ?? ''} />
         {!isTemplate && (
           <>
-            <input type="hidden" name="writingStyle" value={style} />
+            <input type="hidden" name="styleTemplateId" value={styleId} />
             <input type="hidden" name="topicId" value={topicId} />
             <input type="hidden" name="pageCount" value={pages} />
             <input type="hidden" name="promptText" value={wish} />
