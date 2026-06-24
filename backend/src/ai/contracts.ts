@@ -77,6 +77,8 @@ export type ImageContext = {
   character?: string | null;
   /** Resolved child profile, e.g. «мальчик, 3 года» — human-child disambiguation. */
   childDescriptor?: string | null;
+  /** Short plot/title context for cross-page coherence. */
+  plot?: string | null;
   /**
    * Reference images (downscaled base64 data URIs or URLs) to condition the
    * illustration on — e.g. a hero portrait plus the previous page. All are sent

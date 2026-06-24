@@ -187,6 +187,12 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
       const companions = heroes.filter((h) => h.role !== HeroRole.MAIN);
       const character = buildCharacter(mainHero);
       const referenceImage = await toDataUri(this.storage, mainHero?.imageKey ?? null);
+      // Companion portraits (downscaled) for pages where companions appear (9.9).
+      const companionRefs = (
+        await Promise.all(
+          companions.map((c) => toDataUri(this.storage, c.imageKey)),
+        )
+      ).filter((x): x is string => x !== null);
       // Resolve the child's age/gender (with fallbacks) to disambiguate a human
       // child in the story and illustration prompts (fixes e.g. «Лев» → a boy).
       const profile = resolveChildProfile(book.child, book.template);
@@ -246,16 +252,19 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
 
       // Page structure is template-driven: set each page's layout + whether the
       // child is shown from the layout template (overriding the model's choice).
-      if (pageLayout?.length) {
-        const slotByNum = new Map(pageLayout.map((s) => [s.pageNum, s]));
-        for (const p of story.pages) {
-          const slot = slotByNum.get(p.pageNum);
-          if (slot) {
-            p.layout = slot.layout;
-            p.featuresChild = slot.cast === 'MAIN' || slot.cast === 'ALL';
-          }
+      const slotByNum = new Map(
+        (pageLayout ?? []).map((s) => [s.pageNum, s] as const),
+      );
+      for (const p of story.pages) {
+        const slot = slotByNum.get(p.pageNum);
+        if (slot) {
+          p.layout = slot.layout;
+          p.featuresChild = slot.cast === 'MAIN' || slot.cast === 'ALL';
         }
       }
+      // Short plot/title for cross-page coherence; the previous page chains continuity.
+      const plot = resolveSlots(story.title, story.slots);
+      let prevPageRef: string | null = null;
 
 
       // Stage 3 — drawing illustrations (widest band; progress 30→90%). Enter the
@@ -291,14 +300,27 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
             page.imageDescription || page.text,
             story.slots,
           );
+          // Chained references (cap 3 for the edit model): hero(s) by page cast +
+          // the previous page for visual continuity.
+          const slot = slotByNum.get(page.pageNum);
+          const showsMain = slot
+            ? slot.cast === 'MAIN' || slot.cast === 'ALL'
+            : page.featuresChild;
+          const showsExtra = slot
+            ? slot.cast === 'EXTRA' || slot.cast === 'ALL'
+            : false;
+          const refs: string[] = [];
+          if (showsMain && referenceImage) refs.push(referenceImage);
+          if (showsExtra) refs.push(...companionRefs);
+          if (prevPageRef) refs.push(prevPageRef);
           const ctx: ImageContext = {
             scene,
             featuresChild: page.featuresChild,
             photoUrl: book.photoUrl,
             character: page.featuresChild ? character : null,
             childDescriptor: page.featuresChild ? profile.descriptor : null,
-            referenceImages:
-              page.featuresChild && referenceImage ? [referenceImage] : [],
+            plot,
+            referenceImages: [...new Set(refs)].slice(0, 3),
           };
           const original = await this.imageGen.generateImage(ctx);
           imageUrl = original;
@@ -307,6 +329,8 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
             imageUrl = await this.qualityControl(original, ctx, referenceImage);
             if (imageUrl !== original) regens += 1;
           }
+          // Chain: the finished image conditions the next page for continuity.
+          prevPageRef = await toDataUri(this.storage, imageUrl);
         }
 
         // Update in place (no hard delete): upsert the page by (bookId, pageNum),
