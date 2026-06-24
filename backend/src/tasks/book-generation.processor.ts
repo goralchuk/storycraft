@@ -31,7 +31,16 @@ import { BOOK_GENERATION_QUEUE, BookGenerationJob } from './tasks.constants';
 // the character reference are regenerated once.
 const QA_PASS = 7;
 
-@Processor(BOOK_GENERATION_QUEUE)
+// 9.8 — bound throughput so concurrent users don't overwhelm the provider/us.
+// Tunable via env; sane defaults for a single dev instance.
+const GEN_CONCURRENCY = Number(process.env.GEN_CONCURRENCY ?? 3);
+const GEN_RATE_MAX = Number(process.env.GEN_RATE_MAX ?? 30);
+const GEN_RATE_DURATION_MS = Number(process.env.GEN_RATE_DURATION_MS ?? 60000);
+
+@Processor(BOOK_GENERATION_QUEUE, {
+  concurrency: GEN_CONCURRENCY,
+  limiter: { max: GEN_RATE_MAX, duration: GEN_RATE_DURATION_MS },
+})
 export class BookGenerationProcessor extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(BookGenerationProcessor.name);
 
@@ -51,6 +60,9 @@ export class BookGenerationProcessor extends WorkerHost implements OnModuleInit 
   // re-enqueue so generation resumes (no book stays stuck). On a single instance,
   // any PROCESSING at startup has no live worker, so this is safe.
   async onModuleInit() {
+    this.logger.log(
+      `worker concurrency=${GEN_CONCURRENCY}, rate-limit=${GEN_RATE_MAX}/${GEN_RATE_DURATION_MS}ms`,
+    );
     // Close any BookGeneration left PROCESSING by a crash/restart.
     await this.prisma.bookGeneration.updateMany({
       where: { status: GenerationStatus.PROCESSING },
