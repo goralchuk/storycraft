@@ -55,6 +55,13 @@ enum TemplateCategory {
   ANIMALS
 }
 
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
 enum WritingStyle {
   WATERCOLOR
   ADVENTURE
@@ -124,6 +131,8 @@ model Hero {
   name         String
   style        String?
   description  String?
+  imageCaption String?
+  personality  String?
   imageKey     String?
   freeAttempts Int        @default(3)
   status       HeroStatus @default(IDLE)
@@ -152,9 +161,11 @@ model Template {
   coverColor     String?
   tags           Json?
   isActive       Boolean           @default(true)
+  isCustomBase   Boolean           @default(false)
   createdAt      DateTime          @default(now())
 
-  books Book[]
+  books    Book[]
+  histories BookTemplateHistory[]
 }
 
 model Book {
@@ -164,6 +175,7 @@ model Book {
   templateId   String?
   topicId      String?
   bookType     BookType      @default(UNIQUE)
+  templateHistoryId String?
   title        String?
   pageCount    Int           @default(10)
   promptText   String?
@@ -179,13 +191,15 @@ model Book {
   updatedAt    DateTime      @updatedAt
   deletedAt    DateTime?
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  child     Child?        @relation(fields: [childId], references: [id])
-  template  Template?     @relation(fields: [templateId], references: [id])
-  topic     Topic?        @relation(fields: [topicId], references: [id])
-  pages     BookPage[]
-  tasks     Task[]
-  ratings   Rating[]
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child           Child?               @relation(fields: [childId], references: [id])
+  template        Template?            @relation(fields: [templateId], references: [id])
+  topic           Topic?               @relation(fields: [topicId], references: [id])
+  templateHistory BookTemplateHistory? @relation(fields: [templateHistoryId], references: [id])
+  pages           BookPage[]
+  tasks           Task[]
+  ratings         Rating[]
+  generations     BookGeneration[]
 }
 
 model BookPage {
@@ -294,4 +308,81 @@ model PriceItem {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Visual style for a book (a prompt fragment for image generation). Chosen before
+// heroes; prompt content authored by the product owner.
+model StyleTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  previewUrl  String?
+  prompt      String
+  isActive    Boolean  @default(true)
+  sort        Int      @default(0)
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+}
+
+// Per-size page layout: for each page, its layout and which characters appear.
+// layout: [{ pageNum, layout: IMAGE_ONLY|IMAGE_TEXT|TEXT_ONLY, cast: ALL|MAIN|NONE|EXTRA, hasImage }]
+model PageLayoutTemplate {
+  id        String   @id @default(cuid())
+  pageCount Int      @unique
+  layout    Json
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+}
+
+// Orchestrator record for one generation run of a book (state + timing).
+model BookGeneration {
+  id          String           @id @default(cuid())
+  bookId      String
+  status      GenerationStatus @default(PENDING)
+  currentStep String?
+  progress    Int              @default(0)
+  error       String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  book Book                @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  logs BookGenerationLog[]
+
+  @@index([bookId])
+}
+
+// Per-step log of a generation run.
+model BookGenerationLog {
+  id           String   @id @default(cuid())
+  generationId String
+  step         String
+  level        String   @default("info")
+  message      String
+  payload      Json?
+  createdAt    DateTime @default(now())
+
+  generation BookGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+}
+
+// Reusable, child-agnostic story: tokenized title/pages + slots schema + the
+// assembled story prompt and style/theme refs. Re-render swaps the child slots.
+model BookTemplateHistory {
+  id              String   @id @default(cuid())
+  title           String
+  slots           Json
+  pages           Json
+  storyPrompt     String
+  styleTemplateId String?
+  themeTemplateId String?
+  meta            Json?
+  createdAt       DateTime @default(now())
+  deletedAt       DateTime?
+
+  theme Template? @relation(fields: [themeTemplateId], references: [id])
+  books Book[]
 }

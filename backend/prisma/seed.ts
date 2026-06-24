@@ -39,7 +39,38 @@ const templates = [
   { id: 'tpl-little-scientist', title: 'The Little Scientist', icon: '🔬', category: TemplateCategory.SCIENCE, description: 'Curious experiments turn everyday questions into big discoveries.', ageRange: '6–10', availablePages: [16, 20], pageCount: 20, defaultTone: 'curious and clever', coverColor: '#eef2ff', tags: [{ label: 'Science', bg: '#eef2ff', color: '#4f46e5' }], prompt: 'A curious science story where the hero asks big questions, runs playful experiments and makes a wonderful discovery.' },
   { id: 'tpl-best-friends', title: 'Best Friends Forever', icon: '🤝', category: TemplateCategory.FRIENDSHIP, description: 'A warm story about making friends and caring for each other.', ageRange: '4–8', availablePages: [12, 16, 20], pageCount: 16, defaultTone: 'warm and heartfelt', coverColor: '#ffeef5', tags: [{ label: 'Friendship', bg: '#ffeef5', color: '#c0709a' }], prompt: 'A heartfelt friendship story where the hero learns kindness, sharing and the joy of helping a friend in need.' },
   { id: 'tpl-animal-kingdom', title: 'Animal Kingdom', icon: '🦁', category: TemplateCategory.ANIMALS, description: 'A playful safari of brave, funny and loyal animal companions.', ageRange: '3–7', availablePages: [12, 16], pageCount: 12, defaultTone: 'playful and fun', coverColor: '#fff9e6', tags: [{ label: 'Animals', bg: '#fff9e6', color: '#b8860b' }], prompt: 'A playful animal story where the hero teams up with brave and funny creatures and learns about courage and loyalty.' },
+  // Custom-base theme: scaffold used when the parent writes their own story (prompt refined later).
+  { id: 'tpl-custom', title: 'Своя история', icon: '✏️', description: 'Расскажите свою историю — соберём книгу по вашему описанию.', ageRange: '3–10', availablePages: [12, 16, 20, 24], pageCount: 12, defaultTone: 'warm', isCustomBase: true, prompt: 'Базовый каркас пользовательской истории: добрая, по возрасту, с завязкой, развитием, кульминацией и тёплой развязкой.' },
 ];
+
+// Placeholder visual styles (chosen before heroes); real prompts authored later.
+const styleTemplates = [
+  { id: 'style-watercolor', name: 'Акварель', description: 'Мягкая тёплая книжная акварель', prompt: "Soft warm watercolor children's book illustration, gentle palette, cozy lighting.", sort: 0 },
+  { id: 'style-cartoon', name: 'Мультяшный', description: 'Яркий мягкий мультяшный стиль', prompt: "Bright soft cartoon children's book illustration, clean rounded shapes, cheerful colors.", sort: 1 },
+];
+
+// Default per-size page layout. Page 1 = cover (all heroes); ending features the
+// main hero; the middle alternates image / image+text / text-only. Refined later.
+function buildLayout(pageCount: number) {
+  const pages: {
+    pageNum: number;
+    layout: string;
+    cast: string;
+    hasImage: boolean;
+  }[] = [];
+  for (let i = 1; i <= pageCount; i++) {
+    if (i === 1) pages.push({ pageNum: i, layout: 'IMAGE_ONLY', cast: 'ALL', hasImage: true });
+    else if (i === pageCount) pages.push({ pageNum: i, layout: 'IMAGE_TEXT', cast: 'MAIN', hasImage: true });
+    else {
+      const m = i % 3;
+      if (m === 0) pages.push({ pageNum: i, layout: 'TEXT_ONLY', cast: 'NONE', hasImage: false });
+      else if (m === 1) pages.push({ pageNum: i, layout: 'IMAGE_ONLY', cast: 'MAIN', hasImage: true });
+      else pages.push({ pageNum: i, layout: 'IMAGE_TEXT', cast: 'MAIN', hasImage: true });
+    }
+  }
+  return pages;
+}
+const pageLayouts = [12, 16, 20, 24].map((pc) => ({ pageCount: pc, layout: buildLayout(pc) }));
 
 async function main() {
   for (const topic of topics) {
@@ -48,6 +79,14 @@ async function main() {
 
   for (const template of templates) {
     await prisma.template.upsert({ where: { id: template.id }, create: template, update: template });
+  }
+
+  for (const style of styleTemplates) {
+    await prisma.styleTemplate.upsert({ where: { id: style.id }, create: style, update: style });
+  }
+
+  for (const pl of pageLayouts) {
+    await prisma.pageLayoutTemplate.upsert({ where: { pageCount: pl.pageCount }, create: pl, update: pl });
   }
 
   // Singleton AI settings — create with defaults; leave existing values untouched on reseed.
@@ -69,7 +108,7 @@ async function main() {
   );
 
   console.log(
-    `Seeded ${topics.length} topics, ${templates.length} templates, ${priceItems.length} price items, AppSettings singleton.`,
+    `Seeded ${topics.length} topics, ${templates.length} templates, ${styleTemplates.length} styles, ${pageLayouts.length} page layouts, ${priceItems.length} price items, AppSettings singleton.`,
   );
 }
 
